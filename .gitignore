@@ -32,3 +32,5 @@ local-codex-skills/
 *.swo
 *~
 
+# Local planning notes
+plan.md

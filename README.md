@@ -1,11 +1,9 @@
 # uMatter
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![CI](https://github.com/mateuszsury/uMatter/actions/workflows/ci.yml/badge.svg)](https://github.com/mateuszsury/uMatter/actions/workflows/ci.yml)
 
 uMatter is a MicroPython + Matter integration project for ESP32-class boards, focused on practical embedded delivery from PoC to release.
-
-Note: workflow templates are currently stored in `.github/workflows-disabled/`.
-Move them to `.github/workflows/` after enabling GitHub token scope `workflow`.
 
 Current repository status: active Phase 0 implementation with hardware-validated build/flash/test flow on ESP32-C5/C6.
 

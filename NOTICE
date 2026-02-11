@@ -1,0 +1,10 @@
+uMatter
+Copyright (c) 2026 Mateusz Sury
+
+This product includes interoperability work around Matter-enabled ecosystems.
+"Matter" is a trademark of the Connectivity Standards Alliance.
+
+This repository integrates with third-party projects such as MicroPython,
+ESP-IDF, esp-matter, and connectedhomeip, each under their own licenses.
+See upstream repositories for their full license terms.
+

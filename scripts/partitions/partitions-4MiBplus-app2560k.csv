@@ -1,0 +1,14 @@
+# Custom partition table for 4MiB flash used by uMatter on C6/C5.
+# Goals:
+# - increase factory app slot from 0x1F0000 (1984KiB) to 0x280000 (2560KiB)
+# - keep NVS/PHY as in MicroPython default
+# - keep free flash tail for auto-created "vfs" partition at runtime
+#
+# Flash layout summary (4MiB):
+# - app end: 0x290000
+# - free tail for VFS auto-partition: 0x170000 (1472KiB)
+#
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, 0x10000, 0x280000,

@@ -1,0 +1,34 @@
+# IDE and local env
+.idea/
+.vscode/
+.venv/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Build and device artifacts
+artifacts/*
+!artifacts/.gitkeep
+!artifacts/README.md
+*.bin
+*.elf
+*.map
+*.log
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local assistant skills and private tooling
+local-codex-skills/
+
+# Temporary files
+*.swp
+*.swo
+*~
+

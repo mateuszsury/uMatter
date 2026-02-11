@@ -1,0 +1,8 @@
+#ifndef UMATTER_CONFIG_H
+#define UMATTER_CONFIG_H
+
+#define UMATTER_VERSION_MAJOR (0)
+#define UMATTER_VERSION_MINOR (1)
+#define UMATTER_VERSION_PATCH (0)
+
+#endif

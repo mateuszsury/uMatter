@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a defect with reproducible steps
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide enough details to reproduce quickly.
+  - type: input
+    id: board
+    attributes:
+      label: Board / chip
+      placeholder: ESP32_GENERIC_C6 / esp32c6
+    validations:
+      required: true
+  - type: input
+    id: com_port
+    attributes:
+      label: COM port (if hardware issue)
+      placeholder: COM11
+    validations:
+      required: false
+  - type: textarea
+    id: command
+    attributes:
+      label: Command used
+      description: Paste the exact command(s)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / artifacts
+      description: Include key lines and artifact paths
+    validations:
+      required: true
+

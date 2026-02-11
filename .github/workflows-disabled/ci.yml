@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+  workflow_dispatch:
+
+jobs:
+  validate-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate mandatory files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            README.md
+            LICENSE
+            CHANGELOG.md
+            CONTRIBUTING.md
+            SECURITY.md
+            CODE_OF_CONDUCT.md
+            AGENTS.md
+            plan.md
+            mp_skill.md
+          )
+          for f in "${required[@]}"; do
+            [[ -f "$f" ]] || { echo "Missing required file: $f"; exit 1; }
+          done
+
+      - name: Shell syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in scripts/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Markdown basic lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Basic guardrails without external dependencies
+          grep -RIn --include='*.md' -E $'\t' . && { echo "Tab characters found in markdown"; exit 1; } || true
+
+  validate-powershell:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse PowerShell scripts (syntax)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $errors = @()
+          Get-ChildItem -Path scripts -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) {
+              $errors += "Parse error in $($_.Name): $($parseErrors[0].Message)"
+            }
+          }
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            throw "PowerShell syntax validation failed."
+          }
+

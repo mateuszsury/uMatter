@@ -1,0 +1,48 @@
+name: Release Source Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.1.0)"
+        required: true
+        type: string
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build source archives + checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          REPO="uMatter"
+          mkdir -p dist
+          git archive --format=tar.gz --output="dist/${REPO}-${VERSION}.tar.gz" HEAD
+          git archive --format=zip --output="dist/${REPO}-${VERSION}.zip" HEAD
+          (cd dist && sha256sum "${REPO}-${VERSION}.tar.gz" "${REPO}-${VERSION}.zip" > "${REPO}-${VERSION}.sha256")
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-bundle
+          path: dist/
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes "Automated source bundle release for $VERSION" \
+            dist/*
+

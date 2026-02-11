@@ -1,0 +1,11 @@
+root = true
+
+[*.{c,h,cpp,hpp,py,md,sh,yml,yaml,ps1}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+

@@ -26,8 +26,8 @@ jobs:
             SECURITY.md
             CODE_OF_CONDUCT.md
             AGENTS.md
-            plan.md
             mp_skill.md
+            docs/ARCHITECTURE.md
           )
           for f in "${required[@]}"; do
             [[ -f "$f" ]] || { echo "Missing required file: $f"; exit 1; }
@@ -72,4 +72,3 @@ jobs:
             $errors | ForEach-Object { Write-Error $_ }
             throw "PowerShell syntax validation failed."
           }
-

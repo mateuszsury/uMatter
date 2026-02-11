@@ -1,10 +1,8 @@
-﻿# Workflow templates disabled by token scope
+﻿# Workflows Disabled Archive
 
-These workflow files are intentionally stored outside .github/workflows/ because the current GitHub token does not include the workflow scope required to push workflow definitions.
+This directory is kept as an archive location for temporarily disabled workflow files.
 
-To activate:
+Current status:
 
-1. Grant workflow scope to your GitHub token/CLI auth.
-2. Move files from .github/workflows-disabled/ to .github/workflows/.
-3. Commit and push.
-
+1. Active workflows are in `.github/workflows/`.
+2. CI is enabled and running from GitHub Actions.

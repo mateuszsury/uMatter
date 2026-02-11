@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Project-level repository governance files (`README`, `LICENSE`, `CONTRIBUTING`, `SECURITY`, CI templates).
 - Phase 0 documentation and report index.
+- Commissioning diagnostics step-17: ready-reason state model in core and Python API (`ready_reason`, `ready_reason_code`, runtime state mapping).
 
 ### Changed
 
@@ -23,4 +24,3 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Core native module skeleton (`modules/umatter`) with runtime node/endpoint/cluster model.
 - Commissioning and transport diagnostics API in `umatter.Node`.
 - ESP32-C6 build/flash/smoke validated on hardware (`COM11`) with commissioning runtime smoke markers.
-

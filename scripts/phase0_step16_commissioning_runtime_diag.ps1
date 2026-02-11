@@ -73,15 +73,21 @@ print("C16:BEGIN")
 n = umatter.Node(device_name={name!r})
 print("C16:N_TRANSPORT0", n.transport())
 print("C16:N_READY0", n.commissioning_ready())
+print("C16:N_REASON0", n.commissioning_ready_reason())
 n.set_transport("thread")
 print("C16:N_TRANSPORT1", n.transport())
+print("C16:N_REASON1", n.commissioning_ready_reason())
 ep = n.add_endpoint(endpoint_id={endpoint_id}, device_type=umatter.DEVICE_TYPE_ON_OFF_LIGHT)
 ep.add_cluster(umatter.CLUSTER_ON_OFF)
 print("C16:N_READY1", n.commissioning_ready())
+print("C16:N_REASON2", n.commissioning_ready_reason())
 n.start()
 print("C16:N_READY2", n.commissioning_ready())
+print("C16:N_REASON3", n.commissioning_ready_reason())
 d = n.commissioning_diagnostics()
 print("C16:N_DIAG_RUNTIME", d["runtime"])
+print("C16:N_DIAG_REASON", d["ready_reason"])
+print("C16:N_DIAG_REASON_CODE", d["ready_reason_code"])
 print("C16:N_DIAG_TRANSPORT", d["transport"])
 print("C16:N_DIAG_READY", d["ready"])
 print("C16:N_DIAG_STARTED", d["started"])
@@ -90,28 +96,39 @@ print("C16:N_DIAG_MANUAL", d["manual_code"])
 print("C16:N_DIAG_QR", d["qr_code"])
 n.stop()
 print("C16:N_READY3", n.commissioning_ready())
+print("C16:N_REASON4", n.commissioning_ready_reason())
 n.close()
 l = umatter.Light(name="C16Light", endpoint_id={endpoint_id + 1}, passcode={passcode}, discriminator={discriminator}, transport="wifi")
 print("C16:L_TRANSPORT0", l.transport())
 print("C16:L_READY0", l.commissioning_ready())
+print("C16:L_REASON0", l.commissioning_ready_reason())
 l.start()
 print("C16:L_READY1", l.commissioning_ready())
+print("C16:L_REASON1", l.commissioning_ready_reason())
 dl = l.commissioning_diagnostics()
+print("C16:L_DIAG_RUNTIME", dl["runtime"])
+print("C16:L_DIAG_REASON", dl["ready_reason"])
 print("C16:L_DIAG_TRANSPORT", dl["transport"])
 print("C16:L_DIAG_READY", dl["ready"])
 print("C16:L_DIAG_EP", dl["endpoint_count"])
 l.stop()
 print("C16:L_READY2", l.commissioning_ready())
+print("C16:L_REASON2", l.commissioning_ready_reason())
 l.close()
 h = c.create(0xFFF1, 0x9002, "core-c16")
 print("C16:C_TRANS0", c.get_transport(h))
+print("C16:C_REASON0", c.commissioning_ready_reason(h))
 print("C16:C_SET_TRANS", c.set_transport(h, c.TRANSPORT_DUAL))
 print("C16:C_TRANS1", c.get_transport(h))
+print("C16:C_REASON1", c.commissioning_ready_reason(h))
 print("C16:C_ADD_EP", c.add_endpoint(h, {endpoint_id + 10}, umatter.DEVICE_TYPE_ON_OFF_LIGHT))
+print("C16:C_REASON2", c.commissioning_ready_reason(h))
 print("C16:C_START", c.start(h))
 print("C16:C_READY1", c.commissioning_ready(h))
+print("C16:C_REASON3", c.commissioning_ready_reason(h))
 print("C16:C_STOP", c.stop(h))
 print("C16:C_READY2", c.commissioning_ready(h))
+print("C16:C_REASON4", c.commissioning_ready_reason(h))
 print("C16:C_DEST", c.destroy(h))
 print("C16:END")
 """.strip("\n") + "\n"
@@ -136,28 +153,45 @@ required = [
     "C16:BEGIN",
     "C16:N_TRANSPORT0 none",
     "C16:N_READY0 False",
+    "C16:N_REASON0 transport_not_configured",
     "C16:N_TRANSPORT1 thread",
+    "C16:N_REASON1 no_endpoints",
     "C16:N_READY1 False",
+    "C16:N_REASON2 node_not_started",
     "C16:N_READY2 True",
-    "C16:N_DIAG_RUNTIME placeholder",
+    "C16:N_REASON3 ready",
+    "C16:N_DIAG_RUNTIME commissioning_ready",
+    "C16:N_DIAG_REASON ready",
+    "C16:N_DIAG_REASON_CODE 0",
     "C16:N_DIAG_TRANSPORT thread",
     "C16:N_DIAG_READY True",
     "C16:N_DIAG_STARTED True",
     "C16:N_READY3 False",
+    "C16:N_REASON4 node_not_started",
     "C16:L_TRANSPORT0 wifi",
     "C16:L_READY0 False",
+    "C16:L_REASON0 node_not_started",
     "C16:L_READY1 True",
+    "C16:L_REASON1 ready",
+    "C16:L_DIAG_RUNTIME commissioning_ready",
+    "C16:L_DIAG_REASON ready",
     "C16:L_DIAG_TRANSPORT wifi",
     "C16:L_DIAG_READY True",
     "C16:L_READY2 False",
+    "C16:L_REASON2 node_not_started",
     "C16:C_TRANS0 0",
+    "C16:C_REASON0 1",
     "C16:C_SET_TRANS 0",
     "C16:C_TRANS1 3",
+    "C16:C_REASON1 2",
     "C16:C_ADD_EP 0",
+    "C16:C_REASON2 3",
     "C16:C_START 0",
     "C16:C_READY1 1",
+    "C16:C_REASON3 0",
     "C16:C_STOP 0",
     "C16:C_READY2 0",
+    "C16:C_REASON4 3",
     "C16:C_DEST 0",
     "C16:END",
 ]

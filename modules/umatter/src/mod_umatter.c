@@ -134,6 +134,36 @@ static mp_obj_t umatter_transport_mode_to_obj(uint8_t mode) {
     }
 }
 
+static mp_obj_t umatter_ready_reason_to_obj(int ready_reason) {
+    switch (ready_reason) {
+        case UMATTER_CORE_READY_REASON_READY:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_ready);
+        case UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_transport_not_configured);
+        case UMATTER_CORE_READY_REASON_NO_ENDPOINTS:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_no_endpoints);
+        case UMATTER_CORE_READY_REASON_NODE_NOT_STARTED:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_node_not_started);
+        default:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_unknown);
+    }
+}
+
+static mp_obj_t umatter_runtime_state_from_ready_reason(int ready_reason) {
+    switch (ready_reason) {
+        case UMATTER_CORE_READY_REASON_READY:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_commissioning_ready);
+        case UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_awaiting_transport);
+        case UMATTER_CORE_READY_REASON_NO_ENDPOINTS:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_awaiting_endpoint);
+        case UMATTER_CORE_READY_REASON_NODE_NOT_STARTED:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_awaiting_start);
+        default:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_unknown);
+    }
+}
+
 static mp_obj_t umatter_node_new_from_values(const mp_obj_type_t *type, uint16_t vendor_id, uint16_t product_id, const char *device_name) {
     int handle = 0;
     umatter_node_obj_t *self = NULL;
@@ -305,6 +335,19 @@ static mp_obj_t umatter_node_commissioning_ready(mp_obj_t self_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(umatter_node_commissioning_ready_obj, umatter_node_commissioning_ready);
 
+static mp_obj_t umatter_node_commissioning_ready_reason(mp_obj_t self_in) {
+    umatter_node_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    int rc = UMATTER_CORE_OK;
+
+    umatter_raise_if_closed_node(self->handle);
+    rc = umatter_core_commissioning_ready_reason(self->handle);
+    if (rc < 0) {
+        umatter_raise_from_rc(rc);
+    }
+    return umatter_ready_reason_to_obj(rc);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(umatter_node_commissioning_ready_reason_obj, umatter_node_commissioning_ready_reason);
+
 static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     umatter_node_obj_t *self = MP_OBJ_TO_PTR(self_in);
     uint16_t discriminator = 0;
@@ -313,7 +356,7 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     int rc = UMATTER_CORE_OK;
     int started = 0;
     int endpoint_count = 0;
-    int ready = 0;
+    int ready_reason = UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED;
     char manual_code[12];
     char qr_code[32];
     mp_obj_t dict_obj = mp_obj_new_dict(0);
@@ -336,9 +379,9 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     if (rc < 0) {
         umatter_raise_from_rc(rc);
     }
-    ready = umatter_core_commissioning_ready(self->handle);
-    if (ready < 0) {
-        umatter_raise_from_rc(ready);
+    ready_reason = umatter_core_commissioning_ready_reason(self->handle);
+    if (ready_reason < 0) {
+        umatter_raise_from_rc(ready_reason);
     }
     rc = umatter_core_get_manual_code(self->handle, manual_code, sizeof(manual_code));
     if (rc < 0) {
@@ -349,8 +392,10 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
         umatter_raise_from_rc(rc);
     }
 
-    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_runtime), MP_OBJ_NEW_QSTR(MP_QSTR_placeholder));
-    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_ready), mp_obj_new_bool(ready != 0));
+    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_runtime), umatter_runtime_state_from_ready_reason(ready_reason));
+    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_ready), mp_obj_new_bool(ready_reason == UMATTER_CORE_READY_REASON_READY));
+    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_ready_reason), umatter_ready_reason_to_obj(ready_reason));
+    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_ready_reason_code), mp_obj_new_int(ready_reason));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_started), mp_obj_new_bool(started != 0));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_endpoint_count), mp_obj_new_int(endpoint_count));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_transport), umatter_transport_mode_to_obj(transport_mode));
@@ -611,6 +656,7 @@ static const mp_rom_map_elem_t umatter_node_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_transport), MP_ROM_PTR(&umatter_node_set_transport_obj) },
     { MP_ROM_QSTR(MP_QSTR_transport), MP_ROM_PTR(&umatter_node_transport_obj) },
     { MP_ROM_QSTR(MP_QSTR_commissioning_ready), MP_ROM_PTR(&umatter_node_commissioning_ready_obj) },
+    { MP_ROM_QSTR(MP_QSTR_commissioning_ready_reason), MP_ROM_PTR(&umatter_node_commissioning_ready_reason_obj) },
     { MP_ROM_QSTR(MP_QSTR_commissioning_diagnostics), MP_ROM_PTR(&umatter_node_commissioning_diagnostics_obj) },
     { MP_ROM_QSTR(MP_QSTR_manual_code), MP_ROM_PTR(&umatter_node_manual_code_obj) },
     { MP_ROM_QSTR(MP_QSTR_qr_code), MP_ROM_PTR(&umatter_node_qr_code_obj) },
@@ -641,6 +687,10 @@ static const mp_rom_map_elem_t umatter_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_WIFI), MP_ROM_INT(UMATTER_CORE_TRANSPORT_WIFI) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_THREAD), MP_ROM_INT(UMATTER_CORE_TRANSPORT_THREAD) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_DUAL), MP_ROM_INT(UMATTER_CORE_TRANSPORT_DUAL) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_READY), MP_ROM_INT(UMATTER_CORE_READY_REASON_READY) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_TRANSPORT_NOT_CONFIGURED), MP_ROM_INT(UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_NO_ENDPOINTS), MP_ROM_INT(UMATTER_CORE_READY_REASON_NO_ENDPOINTS) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_NODE_NOT_STARTED), MP_ROM_INT(UMATTER_CORE_READY_REASON_NODE_NOT_STARTED) },
 };
 static MP_DEFINE_CONST_DICT(umatter_module_globals, umatter_module_globals_table);
 

@@ -137,6 +137,12 @@ static mp_obj_t mod_umatter_core_commissioning_ready(mp_obj_t handle_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_umatter_core_commissioning_ready_obj, mod_umatter_core_commissioning_ready);
 
+static mp_obj_t mod_umatter_core_commissioning_ready_reason(mp_obj_t handle_in) {
+    int rc = umatter_core_commissioning_ready_reason(mp_obj_get_int(handle_in));
+    return mp_obj_new_int(rc);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_umatter_core_commissioning_ready_reason_obj, mod_umatter_core_commissioning_ready_reason);
+
 static const mp_rom_map_elem_t mod_umatter_core_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR__umatter_core) },
     { MP_ROM_QSTR(MP_QSTR_create), MP_ROM_PTR(&mod_umatter_core_create_obj) },
@@ -155,10 +161,15 @@ static const mp_rom_map_elem_t mod_umatter_core_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_transport), MP_ROM_PTR(&mod_umatter_core_set_transport_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_transport), MP_ROM_PTR(&mod_umatter_core_get_transport_obj) },
     { MP_ROM_QSTR(MP_QSTR_commissioning_ready), MP_ROM_PTR(&mod_umatter_core_commissioning_ready_obj) },
+    { MP_ROM_QSTR(MP_QSTR_commissioning_ready_reason), MP_ROM_PTR(&mod_umatter_core_commissioning_ready_reason_obj) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_NONE), MP_ROM_INT(UMATTER_CORE_TRANSPORT_NONE) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_WIFI), MP_ROM_INT(UMATTER_CORE_TRANSPORT_WIFI) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_THREAD), MP_ROM_INT(UMATTER_CORE_TRANSPORT_THREAD) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_DUAL), MP_ROM_INT(UMATTER_CORE_TRANSPORT_DUAL) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_READY), MP_ROM_INT(UMATTER_CORE_READY_REASON_READY) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_TRANSPORT_NOT_CONFIGURED), MP_ROM_INT(UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_NO_ENDPOINTS), MP_ROM_INT(UMATTER_CORE_READY_REASON_NO_ENDPOINTS) },
+    { MP_ROM_QSTR(MP_QSTR_READY_REASON_NODE_NOT_STARTED), MP_ROM_INT(UMATTER_CORE_READY_REASON_NODE_NOT_STARTED) },
     { MP_ROM_QSTR(MP_QSTR_ERR_OK), MP_ROM_INT(UMATTER_CORE_OK) },
     { MP_ROM_QSTR(MP_QSTR_ERR_INVALID_ARG), MP_ROM_INT(UMATTER_CORE_ERR_INVALID_ARG) },
     { MP_ROM_QSTR(MP_QSTR_ERR_NOT_FOUND), MP_ROM_INT(UMATTER_CORE_ERR_NOT_FOUND) },

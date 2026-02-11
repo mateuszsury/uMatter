@@ -16,6 +16,11 @@
 #define UMATTER_CORE_TRANSPORT_THREAD (2)
 #define UMATTER_CORE_TRANSPORT_DUAL (3)
 
+#define UMATTER_CORE_READY_REASON_READY (0)
+#define UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED (1)
+#define UMATTER_CORE_READY_REASON_NO_ENDPOINTS (2)
+#define UMATTER_CORE_READY_REASON_NODE_NOT_STARTED (3)
+
 int umatter_core_create(uint16_t vendor_id, uint16_t product_id, const char *name);
 int umatter_core_start(int handle);
 int umatter_core_stop(int handle);
@@ -32,5 +37,6 @@ int umatter_core_get_qr_code(int handle, char *out, size_t out_size);
 int umatter_core_set_transport(int handle, uint8_t transport_mode);
 int umatter_core_get_transport(int handle, uint8_t *transport_mode_out);
 int umatter_core_commissioning_ready(int handle);
+int umatter_core_commissioning_ready_reason(int handle);
 
 #endif

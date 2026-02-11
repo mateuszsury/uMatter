@@ -322,13 +322,27 @@ int umatter_core_get_transport(int handle, uint8_t *transport_mode_out) {
 }
 
 int umatter_core_commissioning_ready(int handle) {
+    int ready_reason = umatter_core_commissioning_ready_reason(handle);
+    if (ready_reason < 0) {
+        return ready_reason;
+    }
+    return ready_reason == UMATTER_CORE_READY_REASON_READY ? 1 : 0;
+}
+
+int umatter_core_commissioning_ready_reason(int handle) {
     umatter_core_node_t *node = umatter_core_node_from_handle(handle);
     if (node == NULL) {
         return UMATTER_CORE_ERR_NOT_FOUND;
     }
 
-    if (node->started && node->endpoint_count > 0 && node->transport_mode != UMATTER_CORE_TRANSPORT_NONE) {
-        return 1;
+    if (node->transport_mode == UMATTER_CORE_TRANSPORT_NONE) {
+        return UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED;
     }
-    return 0;
+    if (node->endpoint_count == 0) {
+        return UMATTER_CORE_READY_REASON_NO_ENDPOINTS;
+    }
+    if (!node->started) {
+        return UMATTER_CORE_READY_REASON_NODE_NOT_STARTED;
+    }
+    return UMATTER_CORE_READY_REASON_READY;
 }

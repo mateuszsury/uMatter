@@ -18,6 +18,8 @@ param(
     [string]$RequireDiscoveryFoundForPairing = "false",
     [string]$RunDiscoveryPrecheck = "true",
     [int]$DiscoveryTimeoutSeconds = 8,
+    [string]$RunHostMdnsProbe = "true",
+    [int]$HostMdnsProbeTimeoutSeconds = 6,
     [switch]$SimulateNetworkAdvertising,
     [switch]$SkipRuntimeDiag,
     [string]$Instance = "",
@@ -47,9 +49,13 @@ $RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyF
 $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
 $RequireDiscoveryFoundForPairingBool = Convert-ToBool -Value $RequireDiscoveryFoundForPairing -ParamName "RequireDiscoveryFoundForPairing"
 $RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
+$RunHostMdnsProbeBool = Convert-ToBool -Value $RunHostMdnsProbe -ParamName "RunHostMdnsProbe"
 
 if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
     throw "DiscoveryTimeoutSeconds must be in range 1..120"
+}
+if ($HostMdnsProbeTimeoutSeconds -lt 1 -or $HostMdnsProbeTimeoutSeconds -gt 120) {
+    throw "HostMdnsProbeTimeoutSeconds must be in range 1..120"
 }
 if ($RequireDiscoveryFoundForPairingBool -and -not $RunDiscoveryPrecheckBool) {
     throw "RequireDiscoveryFoundForPairing=true requires RunDiscoveryPrecheck=true"
@@ -122,6 +128,8 @@ $gateParams = @{
     RequireDiscoveryFoundForPairing = $RequireDiscoveryFoundForPairingBool
     RunDiscoveryPrecheck = $RunDiscoveryPrecheckBool
     DiscoveryTimeoutSeconds = $DiscoveryTimeoutSeconds
+    RunHostMdnsProbe = $RunHostMdnsProbeBool
+    HostMdnsProbeTimeoutSeconds = $HostMdnsProbeTimeoutSeconds
 }
 if (-not [string]::IsNullOrWhiteSpace($CommissioningDataPath)) {
     $gateParams.CommissioningDataPath = $CommissioningDataPath
@@ -186,6 +194,15 @@ $result = [ordered]@{
     gate_discovery_precheck_method = $gateResult.discovery_precheck_method
     gate_discovery_precheck_fallback_used = $gateResult.discovery_precheck_fallback_used
     gate_discovery_precheck_log = $gateResult.discovery_precheck_log
+    gate_host_mdns_probe_enabled = $gateResult.host_mdns_probe_enabled
+    gate_host_mdns_probe_status = $gateResult.host_mdns_probe_status
+    gate_host_mdns_probe_status_reason = $gateResult.host_mdns_probe_status_reason
+    gate_host_mdns_probe_found = $gateResult.host_mdns_probe_found
+    gate_host_mdns_probe_mode = $gateResult.host_mdns_probe_mode
+    gate_host_mdns_probe_service_count = $gateResult.host_mdns_probe_service_count
+    gate_host_mdns_probe_match_count = $gateResult.host_mdns_probe_match_count
+    gate_host_mdns_probe_log = $gateResult.host_mdns_probe_log
+    gate_host_mdns_probe_result_json = $gateResult.host_mdns_probe_result_json
     run_pairing = [bool]$RunPairing
     simulate_network_advertising = [bool]$SimulateNetworkAdvertising
     node_id = $NodeId

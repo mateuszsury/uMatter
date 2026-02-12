@@ -12,6 +12,8 @@ param(
     [string]$RequireDiscoveryFoundForPairing = "false",
     [string]$RunDiscoveryPrecheck = "true",
     [int]$DiscoveryTimeoutSeconds = 8,
+    [string]$RunHostMdnsProbe = "true",
+    [int]$HostMdnsProbeTimeoutSeconds = 6,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
 )
@@ -39,9 +41,13 @@ $RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyF
 $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
 $RequireDiscoveryFoundForPairingBool = Convert-ToBool -Value $RequireDiscoveryFoundForPairing -ParamName "RequireDiscoveryFoundForPairing"
 $RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
+$RunHostMdnsProbeBool = Convert-ToBool -Value $RunHostMdnsProbe -ParamName "RunHostMdnsProbe"
 
 if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
     throw "DiscoveryTimeoutSeconds must be in range 1..120"
+}
+if ($HostMdnsProbeTimeoutSeconds -lt 1 -or $HostMdnsProbeTimeoutSeconds -gt 120) {
+    throw "HostMdnsProbeTimeoutSeconds must be in range 1..120"
 }
 if ($RequireDiscoveryFoundForPairingBool -and -not $RunDiscoveryPrecheckBool) {
     throw "RequireDiscoveryFoundForPairing=true requires RunDiscoveryPrecheck=true"
@@ -169,6 +175,19 @@ function Resolve-WslChipToolAutoPath {
     }
 
     return ""
+}
+
+function Resolve-WslPathFromWindowsPath {
+    param(
+        [string]$WindowsPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($WindowsPath)) {
+        return ""
+    }
+
+    $candidate = $WindowsPath -replace "\\", "/"
+    return (& wsl.exe wslpath -a "$candidate" 2>$null | Out-String).Trim()
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ChipToolWslPath)) {
@@ -371,6 +390,8 @@ function Parse-RuntimeDiagnosticsLog {
 
 $preflightLogPath = Join-Path $artifactDirAbs "chiptool_preflight.log"
 $discoveryLogPath = Join-Path $artifactDirAbs "chiptool_discovery.log"
+$hostMdnsProbeLogPath = Join-Path $artifactDirAbs "host_mdns_probe.log"
+$hostMdnsProbeJsonPath = Join-Path $artifactDirAbs "host_mdns_probe_result.json"
 $pairingLogPath = Join-Path $artifactDirAbs "chiptool_pairing.log"
 $matrixMdPath = Join-Path $artifactDirAbs "chiptool_matrix_row.md"
 $resultJsonPath = Join-Path $artifactDirAbs "chiptool_gate_result.json"
@@ -412,6 +433,14 @@ $discoveryPrecheckMode = "none"
 $discoveryPrecheckLog = ""
 $discoveryPrecheckMethod = "none"
 $discoveryPrecheckFallbackUsed = $false
+$hostMdnsProbeEnabled = $false
+$hostMdnsProbeStatus = "skipped"
+$hostMdnsProbeStatusReason = "not requested"
+$hostMdnsProbeFound = $false
+$hostMdnsProbeServiceCount = 0
+$hostMdnsProbeMatchCount = 0
+$hostMdnsProbeMode = "none"
+$hostMdnsProbeExit = -999
 
 $preflightOutput = ""
 $pairingOutput = ""
@@ -440,6 +469,86 @@ if ($RunPairing -and $RequireRuntimeReadyForPairingBool -and $runtimeDiagStatus 
 $networkGateBlocked = $false
 if ($RunPairing -and $RequireNetworkAdvertisingForPairingBool -and $RunDiscoveryPrecheckBool) {
     $discoveryPrecheckEnabled = $true
+
+    if ($RunHostMdnsProbeBool) {
+        $hostMdnsProbeEnabled = $true
+        $hostMdnsProbeMode = "wsl"
+        $probeScriptWin = Join-Path $resolvedRoot "scripts/host_mdns_commissionable_probe.py"
+        if (-not (Test-Path $probeScriptWin)) {
+            $hostMdnsProbeStatus = "unavailable_script"
+            $hostMdnsProbeStatusReason = "missing probe script: $probeScriptWin"
+        } else {
+            $probeScriptWsl = Resolve-WslPathFromWindowsPath -WindowsPath $probeScriptWin
+            if ([string]::IsNullOrWhiteSpace($probeScriptWsl)) {
+                $hostMdnsProbeStatus = "unavailable_script_path"
+                $hostMdnsProbeStatusReason = "failed to convert probe script path to WSL"
+            } else {
+                $wslVenv = "/tmp/umatter-mdns-probe-venv"
+                $wslPython = "$wslVenv/bin/python3"
+                $probeSetupCommand = "set -e; if [ ! -x '$wslPython' ]; then python3 -m venv '$wslVenv'; fi; '$wslPython' -m pip install -q zeroconf"
+                $setupExit = -999
+                $setupOutput = ""
+                $prevErr = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
+                try {
+                    $setupOutput = (& wsl.exe -d Ubuntu bash -lc $probeSetupCommand 2>&1 | Out-String)
+                    $setupExit = $LASTEXITCODE
+                } finally {
+                    $ErrorActionPreference = $prevErr
+                }
+
+                if ($setupExit -ne 0) {
+                    $hostMdnsProbeStatus = "unavailable_dependency"
+                    $hostMdnsProbeStatusReason = "failed to prepare WSL zeroconf environment"
+                    $hostMdnsProbeExit = $setupExit
+                    Set-Content -Path $hostMdnsProbeLogPath -Value $setupOutput -Encoding UTF8
+                } else {
+                    $probeCommand = "'$wslPython' '$probeScriptWsl' --service-type '_matterc._udp.local.' --discriminator $discriminator --timeout-seconds $HostMdnsProbeTimeoutSeconds"
+                    $probeOutput = ""
+                    $prevErr = $ErrorActionPreference
+                    $ErrorActionPreference = "Continue"
+                    try {
+                        $probeOutput = (& wsl.exe -d Ubuntu bash -lc $probeCommand 2>&1 | Out-String)
+                        $hostMdnsProbeExit = $LASTEXITCODE
+                    } finally {
+                        $ErrorActionPreference = $prevErr
+                    }
+                    Set-Content -Path $hostMdnsProbeLogPath -Value $probeOutput -Encoding UTF8
+
+                    $probeData = $null
+                    try {
+                        $probeData = $probeOutput | ConvertFrom-Json
+                    } catch {
+                    }
+
+                    if ($null -eq $probeData) {
+                        $hostMdnsProbeStatus = "invalid_output"
+                        $hostMdnsProbeStatusReason = "probe output is not valid JSON"
+                    } else {
+                        $hostMdnsProbeStatus = [string]$probeData.status
+                        $hostMdnsProbeStatusReason = [string]$probeData.status_reason
+                        $hostMdnsProbeFound = [bool]$probeData.found
+                        $hostMdnsProbeServiceCount = [int]$probeData.service_count
+                        $hostMdnsProbeMatchCount = [int]$probeData.match_count
+                        if ([string]::IsNullOrWhiteSpace($hostMdnsProbeStatus)) {
+                            $hostMdnsProbeStatus = if ($hostMdnsProbeFound) { "found" } else { "not_found" }
+                        }
+                        if ([string]::IsNullOrWhiteSpace($hostMdnsProbeStatusReason)) {
+                            $hostMdnsProbeStatusReason = "probe completed"
+                        }
+                        $probeData | ConvertTo-Json -Depth 8 | Set-Content -Path $hostMdnsProbeJsonPath -Encoding UTF8
+
+                        if (-not $networkAdvertisingKnown) {
+                            $networkAdvertisingKnown = $true
+                            $networkAdvertising = $hostMdnsProbeFound
+                            $networkAdvertisingReason = if ($hostMdnsProbeFound) { "host_mdns_probe" } else { "host_mdns_probe_no_match" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($chipToolResolved)) {
         $discoveryPrecheckStatus = "unavailable_tool"
         $discoveryPrecheckStatusReason = "chip-tool binary not found"
@@ -603,6 +712,11 @@ if ($discoveryPrecheckEnabled) {
     $detailsParts += "discover=$discoveryPrecheckStatus"
     $detailsParts += "discover_method=$discoveryPrecheckMethod"
 }
+if ($hostMdnsProbeEnabled) {
+    $detailsParts += "host_mdns=$hostMdnsProbeStatus"
+    $detailsParts += "host_mdns_match=$hostMdnsProbeMatchCount"
+    $detailsParts += "host_mdns_total=$hostMdnsProbeServiceCount"
+}
 if ($RequireDiscoveryFoundForPairingBool) {
     $detailsParts += "discover_required=true"
 }
@@ -666,6 +780,18 @@ $result = [ordered]@{
     discovery_precheck_fallback_used = $discoveryPrecheckFallbackUsed
     discovery_precheck_log = $discoveryLogPath
     discovery_precheck_discriminator = $discriminator
+    run_host_mdns_probe = $RunHostMdnsProbeBool
+    host_mdns_probe_timeout_seconds = $HostMdnsProbeTimeoutSeconds
+    host_mdns_probe_enabled = $hostMdnsProbeEnabled
+    host_mdns_probe_status = $hostMdnsProbeStatus
+    host_mdns_probe_status_reason = $hostMdnsProbeStatusReason
+    host_mdns_probe_found = $hostMdnsProbeFound
+    host_mdns_probe_mode = $hostMdnsProbeMode
+    host_mdns_probe_exit = $hostMdnsProbeExit
+    host_mdns_probe_service_count = $hostMdnsProbeServiceCount
+    host_mdns_probe_match_count = $hostMdnsProbeMatchCount
+    host_mdns_probe_log = $hostMdnsProbeLogPath
+    host_mdns_probe_result_json = $hostMdnsProbeJsonPath
     runtime_gate_blocked = $runtimeGateBlocked
     network_advertising_known = $networkAdvertisingKnown
     network_advertising = $networkAdvertising

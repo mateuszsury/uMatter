@@ -9,6 +9,8 @@ param(
     [string]$UseOnNetworkLong = "true",
     [string]$RequireRuntimeReadyForPairing = "true",
     [string]$RequireNetworkAdvertisingForPairing = "false",
+    [string]$RunDiscoveryPrecheck = "true",
+    [int]$DiscoveryTimeoutSeconds = 8,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
 )
@@ -34,6 +36,11 @@ function Convert-ToBool {
 $UseOnNetworkLongBool = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
 $RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
 $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
+$RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
+
+if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
+    throw "DiscoveryTimeoutSeconds must be in range 1..120"
+}
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
     $Instance = "c12-" + (Get-Date -Format "yyyyMMdd-HHmmss")
@@ -197,6 +204,13 @@ function Invoke-ChipToolCommand {
     throw "Unsupported chip-tool mode: $Mode"
 }
 
+function Strip-AnsiEscapeCodes {
+    param(
+        [string]$Text
+    )
+    return [regex]::Replace($Text, "`e\[[0-9;?]*[ -/]*[@-~]", "")
+}
+
 function Parse-RuntimeDiagnosticsLog {
     param(
         [string]$LogPath
@@ -318,6 +332,7 @@ function Parse-RuntimeDiagnosticsLog {
 }
 
 $preflightLogPath = Join-Path $artifactDirAbs "chiptool_preflight.log"
+$discoveryLogPath = Join-Path $artifactDirAbs "chiptool_discovery.log"
 $pairingLogPath = Join-Path $artifactDirAbs "chiptool_pairing.log"
 $matrixMdPath = Join-Path $artifactDirAbs "chiptool_matrix_row.md"
 $resultJsonPath = Join-Path $artifactDirAbs "chiptool_gate_result.json"
@@ -350,6 +365,13 @@ $runtimeReady = [bool]$runtimeDiag.ready
 $networkAdvertisingKnown = [bool]$runtimeDiag.network_advertising_known
 $networkAdvertising = [bool]$runtimeDiag.network_advertising
 $networkAdvertisingReason = [string]$runtimeDiag.network_advertising_reason
+$discoveryPrecheckEnabled = $false
+$discoveryPrecheckStatus = "skipped"
+$discoveryPrecheckStatusReason = "not requested"
+$discoveryPrecheckFound = $false
+$discoveryPrecheckExit = -999
+$discoveryPrecheckMode = "none"
+$discoveryPrecheckLog = ""
 
 $preflightOutput = ""
 $pairingOutput = ""
@@ -376,6 +398,53 @@ if ($RunPairing -and $RequireRuntimeReadyForPairingBool -and $runtimeDiagStatus 
     Set-Content -Path $pairingLogPath -Value "pairing skipped: runtime not ready" -Encoding UTF8
 }
 $networkGateBlocked = $false
+if ($RunPairing -and $RequireNetworkAdvertisingForPairingBool -and $RunDiscoveryPrecheckBool) {
+    $discoveryPrecheckEnabled = $true
+    if ([string]::IsNullOrWhiteSpace($chipToolResolved)) {
+        $discoveryPrecheckStatus = "unavailable_tool"
+        $discoveryPrecheckStatusReason = "chip-tool binary not found"
+    } elseif ($chipToolMode -ne "wsl") {
+        $discoveryPrecheckStatus = "unsupported_mode"
+        $discoveryPrecheckStatusReason = "discovery precheck currently supports wsl chip-tool mode only"
+    } else {
+        $discoveryPrecheckMode = $chipToolMode
+        $discoverCommand = "set -o pipefail; timeout ${DiscoveryTimeoutSeconds}s '$chipToolResolved' discover find-commissionable-by-long-discriminator $discriminator --discover-once true 2>&1 | cat"
+        $prevErr = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $discoverOutput = (& wsl.exe -d Ubuntu bash -lc $discoverCommand 2>&1 | Out-String)
+        } finally {
+            $ErrorActionPreference = $prevErr
+        }
+        $discoveryPrecheckExit = $LASTEXITCODE
+        $discoveryPrecheckLog = $discoverOutput
+        Set-Content -Path $discoveryLogPath -Value $discoverOutput -Encoding UTF8
+
+        $discoverOutputClean = Strip-AnsiEscapeCodes -Text $discoverOutput
+        $foundByLongDiscriminator = $discoverOutputClean -match '(?im)^\s*Long discriminator\s*:'
+        $foundByInstanceName = $discoverOutputClean -match '(?im)^\s*Instance name\s*:'
+        $foundByVendor = $discoverOutputClean -match '(?im)^\s*Vendor ID\s*:'
+        $discoveryPrecheckFound = $foundByLongDiscriminator -or $foundByInstanceName -or $foundByVendor
+
+        if ($discoveryPrecheckFound) {
+            $discoveryPrecheckStatus = "found"
+            $discoveryPrecheckStatusReason = "commissionable discovery returned at least one matching entry"
+            $networkAdvertisingKnown = $true
+            $networkAdvertising = $true
+            $networkAdvertisingReason = "chip_tool_discovery"
+        } else {
+            $discoveryPrecheckStatus = "not_found"
+            $discoveryPrecheckStatusReason = "commissionable discovery did not return a matching entry"
+            if (-not $networkAdvertisingKnown) {
+                $networkAdvertisingKnown = $true
+                $networkAdvertising = $false
+                $networkAdvertisingReason = "chip_tool_discovery_no_match"
+            } elseif ([string]::IsNullOrWhiteSpace($networkAdvertisingReason)) {
+                $networkAdvertisingReason = "chip_tool_discovery_no_match"
+            }
+        }
+    }
+}
 if ($RunPairing -and -not $runtimeGateBlocked -and $RequireNetworkAdvertisingForPairingBool -and (-not $networkAdvertisingKnown -or -not $networkAdvertising)) {
     $networkGateBlocked = $true
     $status = "blocked_network_not_advertising"
@@ -446,6 +515,9 @@ if ($networkAdvertisingKnown) {
 if (-not [string]::IsNullOrWhiteSpace($networkAdvertisingReason)) {
     $detailsParts += "net_reason=$networkAdvertisingReason"
 }
+if ($discoveryPrecheckEnabled) {
+    $detailsParts += "discover=$discoveryPrecheckStatus"
+}
 if (-not [string]::IsNullOrWhiteSpace($nodeQrCode)) {
     $detailsParts += "qr=$nodeQrCode"
 }
@@ -493,6 +565,16 @@ $result = [ordered]@{
     runtime_ready_reason_code = $runtimeReadyReasonCode
     require_runtime_ready_for_pairing = $RequireRuntimeReadyForPairingBool
     require_network_advertising_for_pairing = $RequireNetworkAdvertisingForPairingBool
+    run_discovery_precheck = $RunDiscoveryPrecheckBool
+    discovery_timeout_seconds = $DiscoveryTimeoutSeconds
+    discovery_precheck_enabled = $discoveryPrecheckEnabled
+    discovery_precheck_status = $discoveryPrecheckStatus
+    discovery_precheck_status_reason = $discoveryPrecheckStatusReason
+    discovery_precheck_found = $discoveryPrecheckFound
+    discovery_precheck_exit = $discoveryPrecheckExit
+    discovery_precheck_mode = $discoveryPrecheckMode
+    discovery_precheck_log = $discoveryLogPath
+    discovery_precheck_discriminator = $discriminator
     runtime_gate_blocked = $runtimeGateBlocked
     network_advertising_known = $networkAdvertisingKnown
     network_advertising = $networkAdvertising

@@ -31,3 +31,7 @@
 12. `docs/phase-0/step-24-discovery-required-gate.md`
 13. `docs/phase-0/step-25-python-mock-gateway-discovery.md`
 14. `docs/phase-0/step-26-virtual-matter-device-pairing-pass.md`
+15. `docs/phase-0/step-27-runtime-mdns-commissionable-advertising.md`
+16. `docs/phase-0/step-28-network-advertising-mdns-diagnostics.md`
+17. `docs/phase-0/step-29-esp-platform-compile-path-fix.md`
+18. `docs/phase-0/step-30-runtime-mdns-commissionable-subtypes.md`

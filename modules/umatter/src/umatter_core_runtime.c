@@ -120,6 +120,8 @@ static void umatter_core_unpublish_commissionable(int handle) {
 
 static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle, int *mdns_error_out) {
     mdns_txt_item_t txt[7];
+    char long_subtype[10];
+    char short_subtype[8];
     esp_err_t err = ESP_FAIL;
     char discriminator_str[8];
     char vendor_product_str[16];
@@ -171,6 +173,26 @@ static bool umatter_core_publish_commissionable(const umatter_core_node_t *node,
 
     err = mdns_service_add(node->name, "_matterc", "_udp", 5540, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
+        if (mdns_error_out != NULL) {
+            *mdns_error_out = (int)err;
+        }
+        return false;
+    }
+
+    (void)snprintf(long_subtype, sizeof(long_subtype), "_L%04u", (unsigned)node->discriminator);
+    err = mdns_service_subtype_add_for_host(node->name, "_matterc", "_udp", NULL, long_subtype);
+    if (err != ESP_OK) {
+        (void)mdns_service_remove("_matterc", "_udp");
+        if (mdns_error_out != NULL) {
+            *mdns_error_out = (int)err;
+        }
+        return false;
+    }
+
+    (void)snprintf(short_subtype, sizeof(short_subtype), "_S%u", (unsigned)(node->discriminator & 0x000F));
+    err = mdns_service_subtype_add_for_host(node->name, "_matterc", "_udp", NULL, short_subtype);
+    if (err != ESP_OK) {
+        (void)mdns_service_remove("_matterc", "_udp");
         if (mdns_error_out != NULL) {
             *mdns_error_out = (int)err;
         }

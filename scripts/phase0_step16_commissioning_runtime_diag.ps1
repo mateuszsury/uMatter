@@ -5,6 +5,7 @@ param(
     [int]$Passcode = 24681357,
     [int]$Discriminator = 1234,
     [int]$Baud = 115200,
+    [switch]$SimulateNetworkAdvertising,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
 )
@@ -41,6 +42,7 @@ $env:UM_C16_NAME = $DeviceName
 $env:UM_C16_ENDPOINT_ID = "$EndpointId"
 $env:UM_C16_PASSCODE = "$Passcode"
 $env:UM_C16_DISCRIMINATOR = "$Discriminator"
+$env:UM_C16_SIM_NET_ADV = $(if ($SimulateNetworkAdvertising) { "1" } else { "0" })
 
 $pythonSmoke = @'
 import os
@@ -54,6 +56,7 @@ name = os.environ["UM_C16_NAME"]
 endpoint_id = int(os.environ["UM_C16_ENDPOINT_ID"])
 passcode = int(os.environ["UM_C16_PASSCODE"])
 discriminator = int(os.environ["UM_C16_DISCRIMINATOR"])
+simulate_net_adv = os.environ.get("UM_C16_SIM_NET_ADV", "0") == "1"
 
 def read_for(ser, seconds):
     deadline = time.time() + seconds
@@ -69,6 +72,7 @@ def read_for(ser, seconds):
 script = f"""
 import umatter
 import _umatter_core as c
+simulate_net_adv = {str(simulate_net_adv)}
 print("C16:BEGIN")
 n = umatter.Node(device_name={name!r})
 print("C16:N_TRANSPORT0", n.transport())
@@ -84,6 +88,11 @@ print("C16:N_REASON2", n.commissioning_ready_reason())
 n.start()
 print("C16:N_READY2", n.commissioning_ready())
 print("C16:N_REASON3", n.commissioning_ready_reason())
+if simulate_net_adv:
+    n.set_network_advertising(True, "signal_present")
+    nnet = n.network_advertising()
+    print("C16:N_SET_NET1_ADV", nnet[0])
+    print("C16:N_SET_NET1_REASON", nnet[1])
 d = n.commissioning_diagnostics()
 print("C16:N_DIAG_RUNTIME", d["runtime"])
 print("C16:N_DIAG_REASON", d["ready_reason"])
@@ -107,6 +116,11 @@ print("C16:L_REASON0", l.commissioning_ready_reason())
 l.start()
 print("C16:L_READY1", l.commissioning_ready())
 print("C16:L_REASON1", l.commissioning_ready_reason())
+if simulate_net_adv:
+    l.set_network_advertising(True, "signal_present")
+    lnet = l.network_advertising()
+    print("C16:L_SET_NET1_ADV", lnet[0])
+    print("C16:L_SET_NET1_REASON", lnet[1])
 dl = l.commissioning_diagnostics()
 print("C16:L_DIAG_RUNTIME", dl["runtime"])
 print("C16:L_DIAG_REASON", dl["ready_reason"])
@@ -178,8 +192,6 @@ required = [
     "C16:N_DIAG_TRANSPORT thread",
     "C16:N_DIAG_READY True",
     "C16:N_DIAG_STARTED True",
-    "C16:N_DIAG_NET_ADV False",
-    "C16:N_DIAG_NET_REASON",
     "C16:N_READY3 False",
     "C16:N_REASON4 node_not_started",
     "C16:L_TRANSPORT0 wifi",
@@ -191,8 +203,6 @@ required = [
     "C16:L_DIAG_REASON ready",
     "C16:L_DIAG_TRANSPORT wifi",
     "C16:L_DIAG_READY True",
-    "C16:L_DIAG_NET_ADV False",
-    "C16:L_DIAG_NET_REASON",
     "C16:L_READY2 False",
     "C16:L_REASON2 node_not_started",
     "C16:C_TRANS0 0",
@@ -219,6 +229,24 @@ required = [
     "C16:C_DEST 0",
     "C16:END",
 ]
+if simulate_net_adv:
+    required.extend([
+        "C16:N_SET_NET1_ADV True",
+        "C16:N_SET_NET1_REASON signal_present",
+        "C16:N_DIAG_NET_ADV True",
+        "C16:N_DIAG_NET_REASON signal_present",
+        "C16:L_SET_NET1_ADV True",
+        "C16:L_SET_NET1_REASON signal_present",
+        "C16:L_DIAG_NET_ADV True",
+        "C16:L_DIAG_NET_REASON signal_present",
+    ])
+else:
+    required.extend([
+        "C16:N_DIAG_NET_ADV False",
+        "C16:N_DIAG_NET_REASON",
+        "C16:L_DIAG_NET_ADV False",
+        "C16:L_DIAG_NET_REASON",
+    ])
 missing = [m for m in required if m not in output]
 if missing:
     print("C16:MISSING_MARKERS")

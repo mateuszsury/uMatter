@@ -9,11 +9,10 @@
 
 ## Notes
 
-- Device-level commissioning diagnostics currently rely on placeholder runtime markers for some fields.
+- Device-level commissioning diagnostics expose runtime state and ready reason (`runtime`, `ready_reason`, `ready_reason_code`) and are consumed by chip-tool gate.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 
 ## Planned Expansion
 
 - Broader board/profile matrix with memory profiles.
 - Interoperability matrix and soak outcomes in `reports/`.
-

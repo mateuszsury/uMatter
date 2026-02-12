@@ -11,10 +11,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Project-level repository governance files (`README`, `LICENSE`, `CONTRIBUTING`, `SECURITY`, CI templates).
 - Phase 0 documentation and report index.
 - Commissioning diagnostics step-17: ready-reason state model in core and Python API (`ready_reason`, `ready_reason_code`, runtime state mapping).
+- Phase 0 step-18 notes/report for runtime-ready chip-tool gate integration.
+- Phase 0 step-19 e2e runner (`scripts/phase0_step19_commissioning_gate_e2e.ps1`) to chain runtime diagnostics and chip-tool gate.
 
 ### Changed
 
 - `scripts/phase0_step02_c5_e2e.ps1` now resolves `esptool --chip` from board type (C5/C6/etc).
+- `scripts/phase0_step12_chiptool_gate.ps1` now parses runtime diagnostics logs and blocks `-RunPairing` when runtime is not ready.
 
 ## [0.1.0] - 2026-02-11
 

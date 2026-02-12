@@ -1,16 +1,37 @@
 param(
     [string]$CommissioningDataPath = "",
     [string]$CommissioningCodesDataPath = "",
+    [string]$RuntimeDiagLogPath = "",
     [string]$ChipToolPath = "",
     [string]$ChipToolWslPath = "",
     [UInt64]$NodeId = 112233,
     [switch]$RunPairing,
-    [switch]$UseOnNetworkLong = $true,
+    [string]$UseOnNetworkLong = "true",
+    [string]$RequireRuntimeReadyForPairing = "true",
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
 )
 
 $ErrorActionPreference = "Stop"
+
+function Convert-ToBool {
+    param(
+        [string]$Value,
+        [string]$ParamName
+    )
+
+    $normalized = $Value.Trim().ToLowerInvariant()
+    if (@("true", "1", "yes", "y", "on", "$true") -contains $normalized) {
+        return $true
+    }
+    if (@("false", "0", "no", "n", "off", "$false") -contains $normalized) {
+        return $false
+    }
+    throw "$ParamName must be one of: true/false/1/0/yes/no/on/off"
+}
+
+$UseOnNetworkLong = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
+$RequireRuntimeReadyForPairing = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
     $Instance = "c12-" + (Get-Date -Format "yyyyMMdd-HHmmss")
@@ -174,10 +195,127 @@ function Invoke-ChipToolCommand {
     throw "Unsupported chip-tool mode: $Mode"
 }
 
+function Parse-RuntimeDiagnosticsLog {
+    param(
+        [string]$LogPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LogPath) -or -not (Test-Path $LogPath)) {
+        return [PSCustomObject]@{
+            status = "missing"
+            status_reason = "runtime diagnostics log not found"
+            ready_reason = ""
+            ready_reason_code = -1
+            runtime = ""
+            ready = $false
+        }
+    }
+
+    try {
+        $text = Get-Content -Path $LogPath -Raw
+    } catch {
+        return [PSCustomObject]@{
+            status = "invalid"
+            status_reason = "failed to read runtime diagnostics log"
+            ready_reason = ""
+            ready_reason_code = -1
+            runtime = ""
+            ready = $false
+        }
+    }
+
+    $reasonMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_REASON\s+([A-Za-z0-9_]+)\s*$')
+    $reasonFallbackMatch = [regex]::Match($text, '(?m)^C16:N_REASON3\s+([A-Za-z0-9_]+)\s*$')
+    $reasonCodeMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_REASON_CODE\s+(-?\d+)\s*$')
+    $runtimeMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_RUNTIME\s+([A-Za-z0-9_]+)\s*$')
+    $readyMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_READY\s+(True|False)\s*$')
+
+    $readyReason = ""
+    if ($reasonMatch.Success) {
+        $readyReason = $reasonMatch.Groups[1].Value
+    } elseif ($reasonFallbackMatch.Success) {
+        $readyReason = $reasonFallbackMatch.Groups[1].Value
+    }
+
+    $readyReasonCode = -1
+    if ($reasonCodeMatch.Success) {
+        $readyReasonCode = [int]$reasonCodeMatch.Groups[1].Value
+    }
+
+    $runtimeState = ""
+    if ($runtimeMatch.Success) {
+        $runtimeState = $runtimeMatch.Groups[1].Value
+    }
+
+    $readyBool = $false
+    if ($readyMatch.Success) {
+        $readyBool = $readyMatch.Groups[1].Value -eq "True"
+    } elseif ($readyReason -eq "ready") {
+        $readyBool = $true
+    }
+
+    if ([string]::IsNullOrWhiteSpace($readyReason) -and [string]::IsNullOrWhiteSpace($runtimeState) -and -not $readyMatch.Success) {
+        return [PSCustomObject]@{
+            status = "invalid"
+            status_reason = "runtime diagnostics markers not found in log"
+            ready_reason = ""
+            ready_reason_code = -1
+            runtime = ""
+            ready = $false
+        }
+    }
+
+    if ($readyBool -and $readyReason -eq "ready") {
+        return [PSCustomObject]@{
+            status = "ready"
+            status_reason = "runtime diagnostics indicate commissioning readiness"
+            ready_reason = $readyReason
+            ready_reason_code = $readyReasonCode
+            runtime = $runtimeState
+            ready = $true
+        }
+    }
+
+    return [PSCustomObject]@{
+        status = "not_ready"
+        status_reason = "runtime diagnostics indicate node is not ready for pairing"
+        ready_reason = $readyReason
+        ready_reason_code = $readyReasonCode
+        runtime = $runtimeState
+        ready = $false
+    }
+}
+
 $preflightLogPath = Join-Path $artifactDirAbs "chiptool_preflight.log"
 $pairingLogPath = Join-Path $artifactDirAbs "chiptool_pairing.log"
 $matrixMdPath = Join-Path $artifactDirAbs "chiptool_matrix_row.md"
 $resultJsonPath = Join-Path $artifactDirAbs "chiptool_gate_result.json"
+
+$runtimeDiagLogSource = "none"
+if ([string]::IsNullOrWhiteSpace($RuntimeDiagLogPath)) {
+    $latestRuntimeLog = Get-ChildItem -Path $artifactsRootAbs -Recurse -File -Filter "serial_commissioning_runtime_diag.log" |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -ne $latestRuntimeLog) {
+        $RuntimeDiagLogPath = $latestRuntimeLog.FullName
+        $runtimeDiagLogSource = "auto_latest"
+    }
+} else {
+    $runtimeDiagLogSource = "explicit"
+}
+
+$runtimeDiagLogAbs = ""
+if (-not [string]::IsNullOrWhiteSpace($RuntimeDiagLogPath) -and (Test-Path $RuntimeDiagLogPath)) {
+    $runtimeDiagLogAbs = (Resolve-Path -Path $RuntimeDiagLogPath).Path
+}
+
+$runtimeDiag = Parse-RuntimeDiagnosticsLog -LogPath $runtimeDiagLogAbs
+$runtimeDiagStatus = [string]$runtimeDiag.status
+$runtimeDiagStatusReason = [string]$runtimeDiag.status_reason
+$runtimeReadyReason = [string]$runtimeDiag.ready_reason
+$runtimeReadyReasonCode = [int]$runtimeDiag.ready_reason_code
+$runtimeState = [string]$runtimeDiag.runtime
+$runtimeReady = [bool]$runtimeDiag.ready
 
 $preflightOutput = ""
 $pairingOutput = ""
@@ -192,8 +330,19 @@ if (-not $UseOnNetworkLong) {
 $pairingCommand = "chip-tool pairing $pairingMode $NodeId $passcode $discriminator"
 
 $pairingArgs = @("pairing", $pairingMode, "$NodeId", "$passcode", "$discriminator")
+$runtimeGateBlocked = $false
+if ($RunPairing -and $RequireRuntimeReadyForPairing -and $runtimeDiagStatus -ne "ready") {
+    $runtimeGateBlocked = $true
+    $status = "blocked_runtime_not_ready"
+    $statusReason = "runtime diagnostics gate: $runtimeDiagStatusReason"
+    if (-not [string]::IsNullOrWhiteSpace($runtimeReadyReason)) {
+        $statusReason += " (ready_reason=$runtimeReadyReason)"
+    }
+    Set-Content -Path $preflightLogPath -Value $statusReason -Encoding UTF8
+    Set-Content -Path $pairingLogPath -Value "pairing skipped: runtime not ready" -Encoding UTF8
+}
 
-if (-not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
+if (-not $runtimeGateBlocked -and -not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
     $preflightResult = Invoke-ChipToolCommand -Mode $chipToolMode -BinaryPath $chipToolResolved -ToolArgs @("pairing")
     $preflightOutput = $preflightResult.Output
     $preflightExit = $preflightResult.ExitCode
@@ -231,20 +380,28 @@ if (-not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
         $status = "fail_preflight"
         $statusReason = "chip-tool preflight output did not match expected command-set usage"
     }
-} else {
+} elseif (-not $runtimeGateBlocked) {
     Set-Content -Path $preflightLogPath -Value "chip-tool not found" -Encoding UTF8
 }
 
-$detailsParts = @($statusReason, "manual=$nodeManualCode", "codes=$codesStatus")
+$detailsParts = @($statusReason, "manual=$nodeManualCode", "codes=$codesStatus", "runtime=$runtimeDiagStatus")
+if (-not [string]::IsNullOrWhiteSpace($runtimeReadyReason)) {
+    $detailsParts += "ready_reason=$runtimeReadyReason"
+}
 if (-not [string]::IsNullOrWhiteSpace($nodeQrCode)) {
     $detailsParts += "qr=$nodeQrCode"
 }
 $detailsJoined = ($detailsParts -join "; ").Replace('|', '/')
 
+$transportState = "commissioning-placeholder"
+if (-not [string]::IsNullOrWhiteSpace($runtimeState)) {
+    $transportState = $runtimeState
+}
+
 $matrixRow = @(
     "| board | transport | controller | test | status | details |"
     "|---|---|---|---|---|---|"
-    ("| ESP32-C6 | commissioning-placeholder | chip-tool | pairing {0} | {1} | {2} |" -f $pairingMode, $status, $detailsJoined)
+    ("| ESP32-C6 | {0} | chip-tool | pairing {1} | {2} | {3} |" -f $transportState, $pairingMode, $status, $detailsJoined)
 ) -join [Environment]::NewLine
 Set-Content -Path $matrixMdPath -Value $matrixRow -Encoding UTF8
 
@@ -268,6 +425,16 @@ $result = [ordered]@{
     pairing_mode = $pairingMode
     chip_tool_path = $chipToolResolved
     chip_tool_mode = $chipToolMode
+    runtime_diag_log_path = $runtimeDiagLogAbs
+    runtime_diag_log_source = $runtimeDiagLogSource
+    runtime_diag_status = $runtimeDiagStatus
+    runtime_diag_status_reason = $runtimeDiagStatusReason
+    runtime_state = $runtimeState
+    runtime_ready = $runtimeReady
+    runtime_ready_reason = $runtimeReadyReason
+    runtime_ready_reason_code = $runtimeReadyReasonCode
+    require_runtime_ready_for_pairing = $RequireRuntimeReadyForPairing
+    runtime_gate_blocked = $runtimeGateBlocked
     run_pairing = [bool]$RunPairing
     preflight_exit = $preflightExit
     pairing_exit = $pairingExit

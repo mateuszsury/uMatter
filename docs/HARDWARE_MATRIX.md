@@ -17,6 +17,7 @@
   - `network_advertising_mdns_published`
   - `network_advertising_mdns_last_error`
   - `network_advertising_manual_override`
+- Latest ESP32-C6 run on `COM11` reports integrated advertising path (`True/signal_present`, `mdns_published=True`), while controller discovery is still `not_found`.
 - Controller-side gate supports `chip-tool` discovery precheck (`discover find-commissionable-by-long-discriminator`) before pairing.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 

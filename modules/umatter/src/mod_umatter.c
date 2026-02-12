@@ -164,6 +164,22 @@ static mp_obj_t umatter_runtime_state_from_ready_reason(int ready_reason) {
     }
 }
 
+static mp_obj_t umatter_network_advertising_reason_to_obj(uint8_t reason_code) {
+    switch (reason_code) {
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_runtime_not_ready);
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_not_integrated);
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_signal_present);
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_LOST:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_signal_lost);
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN:
+        default:
+            return MP_OBJ_NEW_QSTR(MP_QSTR_unknown);
+    }
+}
+
 static mp_obj_t umatter_node_new_from_values(const mp_obj_type_t *type, uint16_t vendor_id, uint16_t product_id, const char *device_name) {
     int handle = 0;
     umatter_node_obj_t *self = NULL;
@@ -357,8 +373,8 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     int started = 0;
     int endpoint_count = 0;
     int ready_reason = UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED;
-    bool network_advertising = false;
-    const char *network_advertising_reason = "runtime_not_ready";
+    int network_advertising = 0;
+    uint8_t network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
     char manual_code[12];
     char qr_code[32];
     mp_obj_t dict_obj = mp_obj_new_dict(0);
@@ -385,9 +401,9 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     if (ready_reason < 0) {
         umatter_raise_from_rc(ready_reason);
     }
-    if (ready_reason == UMATTER_CORE_READY_REASON_READY) {
-        // Runtime is ready, but real mDNS advertisement is not integrated in PoC runtime yet.
-        network_advertising_reason = "not_integrated";
+    rc = umatter_core_get_network_advertising(self->handle, &network_advertising, &network_advertising_reason);
+    if (rc < 0) {
+        umatter_raise_from_rc(rc);
     }
     rc = umatter_core_get_manual_code(self->handle, manual_code, sizeof(manual_code));
     if (rc < 0) {
@@ -405,8 +421,8 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_started), mp_obj_new_bool(started != 0));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_endpoint_count), mp_obj_new_int(endpoint_count));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_transport), umatter_transport_mode_to_obj(transport_mode));
-    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising), mp_obj_new_bool(network_advertising));
-    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising_reason), mp_obj_new_str(network_advertising_reason, strlen(network_advertising_reason)));
+    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising), mp_obj_new_bool(network_advertising != 0));
+    mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising_reason), umatter_network_advertising_reason_to_obj(network_advertising_reason));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_discriminator), mp_obj_new_int_from_uint(discriminator));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_passcode), mp_obj_new_int_from_uint(passcode));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_manual_code), mp_obj_new_str(manual_code, strlen(manual_code)));

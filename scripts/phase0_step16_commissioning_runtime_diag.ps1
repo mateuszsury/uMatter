@@ -122,6 +122,8 @@ l.close()
 h = c.create(0xFFF1, 0x9002, "core-c16")
 print("C16:C_TRANS0", c.get_transport(h))
 print("C16:C_REASON0", c.commissioning_ready_reason(h))
+print("C16:C_NET0", c.get_network_advertising(h))
+print("C16:C_SET_NET0", c.set_network_advertising(h, True, c.NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT))
 print("C16:C_SET_TRANS", c.set_transport(h, c.TRANSPORT_DUAL))
 print("C16:C_TRANS1", c.get_transport(h))
 print("C16:C_REASON1", c.commissioning_ready_reason(h))
@@ -130,9 +132,15 @@ print("C16:C_REASON2", c.commissioning_ready_reason(h))
 print("C16:C_START", c.start(h))
 print("C16:C_READY1", c.commissioning_ready(h))
 print("C16:C_REASON3", c.commissioning_ready_reason(h))
+print("C16:C_NET1", c.get_network_advertising(h))
+print("C16:C_SET_NET1", c.set_network_advertising(h, True, c.NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT))
+print("C16:C_NET2", c.get_network_advertising(h))
+print("C16:C_SET_NET2", c.set_network_advertising(h, False, c.NETWORK_ADVERTISING_REASON_SIGNAL_LOST))
+print("C16:C_NET3", c.get_network_advertising(h))
 print("C16:C_STOP", c.stop(h))
 print("C16:C_READY2", c.commissioning_ready(h))
 print("C16:C_REASON4", c.commissioning_ready_reason(h))
+print("C16:C_NET4", c.get_network_advertising(h))
 print("C16:C_DEST", c.destroy(h))
 print("C16:END")
 """.strip("\n") + "\n"
@@ -189,6 +197,8 @@ required = [
     "C16:L_REASON2 node_not_started",
     "C16:C_TRANS0 0",
     "C16:C_REASON0 1",
+    "C16:C_NET0 (False, 1)",
+    "C16:C_SET_NET0 -3",
     "C16:C_SET_TRANS 0",
     "C16:C_TRANS1 3",
     "C16:C_REASON1 2",
@@ -197,9 +207,15 @@ required = [
     "C16:C_START 0",
     "C16:C_READY1 1",
     "C16:C_REASON3 0",
+    "C16:C_NET1 (False, 2)",
+    "C16:C_SET_NET1 0",
+    "C16:C_NET2 (True, 3)",
+    "C16:C_SET_NET2 0",
+    "C16:C_NET3 (False, 4)",
     "C16:C_STOP 0",
     "C16:C_READY2 0",
     "C16:C_REASON4 3",
+    "C16:C_NET4 (False, 1)",
     "C16:C_DEST 0",
     "C16:END",
 ]

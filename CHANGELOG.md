@@ -26,6 +26,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Phase 0 step-30 runtime commissionable mDNS subtype publishing (`_L...`, `_S...`) with rollback on subtype registration failure.
 - Phase 0 step-31 chip-tool WSL auto-detection in step12 (PATH + env + common HOME candidates), removing false `unavailable_tool` when binary exists outside PATH.
 - Phase 0 step-32 host-side mDNS commissionable probe (`host_mdns_commissionable_probe.py`) integrated into step12 and propagated by step19 (`host_mdns_probe_*` diagnostics).
+- Phase 0 step-33 dual host mDNS probe mode in step12/step19 (`HostMdnsProbeMode=wsl|windows|both`) with per-mode diagnostics (`host_mdns_probe_wsl_*`, `host_mdns_probe_windows_*`).
 
 ### Changed
 

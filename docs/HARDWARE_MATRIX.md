@@ -22,6 +22,7 @@
 - Controller-side gate supports `chip-tool` discovery precheck (`discover find-commissionable-by-long-discriminator`) before pairing.
 - Controller-side gate now auto-detects WSL `chip-tool` from common locations, so missing PATH no longer forces `unavailable_tool`.
 - Controller-side gate now also records host-side mDNS probe diagnostics (`host_mdns_probe_*`) to separate discovery visibility from tooling issues.
+- Host-side mDNS probe supports comparative mode (`HostMdnsProbeMode=both`) and records separate WSL/Windows findings in one gate run.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 
 ## Planned Expansion

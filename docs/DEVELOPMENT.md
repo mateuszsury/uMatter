@@ -35,9 +35,18 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step16_commissioning_run
   -ComPort COM11
 ```
 
+5. Commissioning gate e2e (runtime diag + chip-tool gate):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gate_e2e.ps1 `
+  -SkipRuntimeDiag `
+  -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step17/serial_commissioning_runtime_diag.log `
+  -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
+  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool
+```
+
 ## Concurrent Build Safety
 
 - Always use unique `BuildInstance` values.
 - Keep separate artifact roots when running parallel sessions.
 - Do not share mutable build directories across active processes.
-

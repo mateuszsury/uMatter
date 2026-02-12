@@ -21,3 +21,6 @@
 2. `AGENTS.md`
 3. `docs/phase-0/step-01-preflight.md`
 4. `docs/phase-0/step-16-commissioning-runtime-diagnostics.md`
+5. `docs/phase-0/step-17-commissioning-ready-reason-runtime-state.md`
+6. `docs/phase-0/step-18-chiptool-runtime-ready-gate.md`
+7. `docs/phase-0/step-19-commissioning-gate-e2e-runner.md`

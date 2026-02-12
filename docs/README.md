@@ -27,3 +27,4 @@
 8. `docs/phase-0/step-20-network-advertising-gate.md`
 9. `docs/phase-0/step-21-chiptool-discovery-precheck.md`
 10. `docs/phase-0/step-22-runtime-network-advertising-state-contract.md`
+11. `docs/phase-0/step-23-network-advertising-node-hook-and-gate-positive-path.md`

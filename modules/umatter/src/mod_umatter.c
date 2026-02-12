@@ -180,6 +180,27 @@ static mp_obj_t umatter_network_advertising_reason_to_obj(uint8_t reason_code) {
     }
 }
 
+static uint8_t umatter_parse_network_advertising_reason(mp_obj_t reason_obj) {
+    const char *reason = mp_obj_str_get_str(reason_obj);
+    if (strcmp(reason, "unknown") == 0) {
+        return UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
+    }
+    if (strcmp(reason, "runtime_not_ready") == 0) {
+        return UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
+    }
+    if (strcmp(reason, "not_integrated") == 0) {
+        return UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED;
+    }
+    if (strcmp(reason, "signal_present") == 0) {
+        return UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT;
+    }
+    if (strcmp(reason, "signal_lost") == 0) {
+        return UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_LOST;
+    }
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid network advertising reason"));
+    return UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
+}
+
 static mp_obj_t umatter_node_new_from_values(const mp_obj_type_t *type, uint16_t vendor_id, uint16_t product_id, const char *device_name) {
     int handle = 0;
     umatter_node_obj_t *self = NULL;
@@ -363,6 +384,42 @@ static mp_obj_t umatter_node_commissioning_ready_reason(mp_obj_t self_in) {
     return umatter_ready_reason_to_obj(rc);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(umatter_node_commissioning_ready_reason_obj, umatter_node_commissioning_ready_reason);
+
+static mp_obj_t umatter_node_set_network_advertising(size_t n_args, const mp_obj_t *args) {
+    umatter_node_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+    int advertising = mp_obj_is_true(args[1]) ? 1 : 0;
+    uint8_t reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
+    int rc = UMATTER_CORE_OK;
+
+    umatter_raise_if_closed_node(self->handle);
+    if (n_args >= 3) {
+        reason = umatter_parse_network_advertising_reason(args[2]);
+    }
+    rc = umatter_core_set_network_advertising(self->handle, advertising, reason);
+    if (rc < 0) {
+        umatter_raise_from_rc(rc);
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(umatter_node_set_network_advertising_obj, 2, 3, umatter_node_set_network_advertising);
+
+static mp_obj_t umatter_node_network_advertising(mp_obj_t self_in) {
+    umatter_node_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    int advertising = 0;
+    uint8_t reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
+    int rc = UMATTER_CORE_OK;
+    mp_obj_t tuple_items[2];
+
+    umatter_raise_if_closed_node(self->handle);
+    rc = umatter_core_get_network_advertising(self->handle, &advertising, &reason);
+    if (rc < 0) {
+        umatter_raise_from_rc(rc);
+    }
+    tuple_items[0] = mp_obj_new_bool(advertising != 0);
+    tuple_items[1] = umatter_network_advertising_reason_to_obj(reason);
+    return mp_obj_new_tuple(2, tuple_items);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(umatter_node_network_advertising_obj, umatter_node_network_advertising);
 
 static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     umatter_node_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -681,6 +738,8 @@ static const mp_rom_map_elem_t umatter_node_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_transport), MP_ROM_PTR(&umatter_node_transport_obj) },
     { MP_ROM_QSTR(MP_QSTR_commissioning_ready), MP_ROM_PTR(&umatter_node_commissioning_ready_obj) },
     { MP_ROM_QSTR(MP_QSTR_commissioning_ready_reason), MP_ROM_PTR(&umatter_node_commissioning_ready_reason_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_network_advertising), MP_ROM_PTR(&umatter_node_set_network_advertising_obj) },
+    { MP_ROM_QSTR(MP_QSTR_network_advertising), MP_ROM_PTR(&umatter_node_network_advertising_obj) },
     { MP_ROM_QSTR(MP_QSTR_commissioning_diagnostics), MP_ROM_PTR(&umatter_node_commissioning_diagnostics_obj) },
     { MP_ROM_QSTR(MP_QSTR_manual_code), MP_ROM_PTR(&umatter_node_manual_code_obj) },
     { MP_ROM_QSTR(MP_QSTR_qr_code), MP_ROM_PTR(&umatter_node_qr_code_obj) },
@@ -715,6 +774,11 @@ static const mp_rom_map_elem_t umatter_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_READY_REASON_TRANSPORT_NOT_CONFIGURED), MP_ROM_INT(UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED) },
     { MP_ROM_QSTR(MP_QSTR_READY_REASON_NO_ENDPOINTS), MP_ROM_INT(UMATTER_CORE_READY_REASON_NO_ENDPOINTS) },
     { MP_ROM_QSTR(MP_QSTR_READY_REASON_NODE_NOT_STARTED), MP_ROM_INT(UMATTER_CORE_READY_REASON_NODE_NOT_STARTED) },
+    { MP_ROM_QSTR(MP_QSTR_NETWORK_ADVERTISING_REASON_UNKNOWN), MP_ROM_INT(UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN) },
+    { MP_ROM_QSTR(MP_QSTR_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY), MP_ROM_INT(UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY) },
+    { MP_ROM_QSTR(MP_QSTR_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED), MP_ROM_INT(UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED) },
+    { MP_ROM_QSTR(MP_QSTR_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT), MP_ROM_INT(UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT) },
+    { MP_ROM_QSTR(MP_QSTR_NETWORK_ADVERTISING_REASON_SIGNAL_LOST), MP_ROM_INT(UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_LOST) },
 };
 static MP_DEFINE_CONST_DICT(umatter_module_globals, umatter_module_globals_table);
 

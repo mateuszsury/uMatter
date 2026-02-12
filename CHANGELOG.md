@@ -14,6 +14,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Phase 0 step-18 notes/report for runtime-ready chip-tool gate integration.
 - Phase 0 step-19 e2e runner (`scripts/phase0_step19_commissioning_gate_e2e.ps1`) to chain runtime diagnostics and chip-tool gate.
 - Phase 0 step-20 network diagnostics fields (`network_advertising`, `network_advertising_reason`) in commissioning diagnostics.
+- Phase 0 step-21 discovery precheck fields (`discovery_precheck_*`) in chip-tool gate and e2e runner.
 
 ### Changed
 
@@ -21,6 +22,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `scripts/phase0_step12_chiptool_gate.ps1` now parses runtime diagnostics logs and blocks `-RunPairing` when runtime is not ready.
 - `scripts/phase0_step12_chiptool_gate.ps1` now supports optional `RequireNetworkAdvertisingForPairing` and `blocked_network_not_advertising`.
 - `scripts/phase0_step19_commissioning_gate_e2e.ps1` now propagates network-gate settings and outputs `gate_network_*` fields.
+- `scripts/phase0_step12_chiptool_gate.ps1` now supports optional chip-tool discovery precheck (`RunDiscoveryPrecheck`, `DiscoveryTimeoutSeconds`) before pairing.
 
 ## [0.1.0] - 2026-02-11
 

@@ -56,6 +56,20 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool
 ```
 
+7. Commissioning gate z discovery precheck:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gate_e2e.ps1 `
+  -SkipRuntimeDiag `
+  -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step20/serial_commissioning_runtime_diag.log `
+  -RunPairing `
+  -RequireNetworkAdvertisingForPairing true `
+  -RunDiscoveryPrecheck true `
+  -DiscoveryTimeoutSeconds 8 `
+  -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
+  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool
+```
+
 ## Concurrent Build Safety
 
 - Always use unique `BuildInstance` values.

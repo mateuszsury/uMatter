@@ -25,3 +25,4 @@
 6. `docs/phase-0/step-18-chiptool-runtime-ready-gate.md`
 7. `docs/phase-0/step-19-commissioning-gate-e2e-runner.md`
 8. `docs/phase-0/step-20-network-advertising-gate.md`
+9. `docs/phase-0/step-21-chiptool-discovery-precheck.md`

@@ -15,6 +15,8 @@ param(
     [string]$UseOnNetworkLong = "true",
     [string]$RequireRuntimeReadyForPairing = "true",
     [string]$RequireNetworkAdvertisingForPairing = "false",
+    [string]$RunDiscoveryPrecheck = "true",
+    [int]$DiscoveryTimeoutSeconds = 8,
     [switch]$SkipRuntimeDiag,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
@@ -41,6 +43,11 @@ function Convert-ToBool {
 $UseOnNetworkLongBool = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
 $RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
 $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
+$RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
+
+if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
+    throw "DiscoveryTimeoutSeconds must be in range 1..120"
+}
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
     $Instance = "c19-" + (Get-Date -Format "yyyyMMdd-HHmmss")
@@ -103,6 +110,8 @@ $gateParams = @{
     NodeId = $NodeId
     RequireRuntimeReadyForPairing = $RequireRuntimeReadyForPairingBool
     RequireNetworkAdvertisingForPairing = $RequireNetworkAdvertisingForPairingBool
+    RunDiscoveryPrecheck = $RunDiscoveryPrecheckBool
+    DiscoveryTimeoutSeconds = $DiscoveryTimeoutSeconds
 }
 if (-not [string]::IsNullOrWhiteSpace($CommissioningDataPath)) {
     $gateParams.CommissioningDataPath = $CommissioningDataPath
@@ -157,6 +166,12 @@ $result = [ordered]@{
     gate_network_advertising = $gateResult.network_advertising
     gate_network_advertising_reason = $gateResult.network_advertising_reason
     gate_network_gate_blocked = $gateResult.network_gate_blocked
+    gate_discovery_precheck_enabled = $gateResult.discovery_precheck_enabled
+    gate_discovery_precheck_status = $gateResult.discovery_precheck_status
+    gate_discovery_precheck_status_reason = $gateResult.discovery_precheck_status_reason
+    gate_discovery_precheck_found = $gateResult.discovery_precheck_found
+    gate_discovery_precheck_exit = $gateResult.discovery_precheck_exit
+    gate_discovery_precheck_log = $gateResult.discovery_precheck_log
     run_pairing = [bool]$RunPairing
     node_id = $NodeId
 }

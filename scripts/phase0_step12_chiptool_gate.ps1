@@ -138,6 +138,39 @@ if (-not [string]::IsNullOrWhiteSpace($codesDataAbs)) {
 $chipToolResolved = ""
 $chipToolMode = "missing"
 
+function Resolve-WslChipToolAutoPath {
+    $fromPath = (& wsl.exe -d Ubuntu bash -lc 'command -v chip-tool || true' 2>$null | Out-String).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($fromPath)) {
+        return $fromPath
+    }
+
+    $homePath = (& wsl.exe -d Ubuntu bash -lc 'printf "%s" "$HOME"' 2>$null | Out-String).Trim()
+    $candidates = @()
+
+    if (-not [string]::IsNullOrWhiteSpace($env:CHIP_TOOL_WSL_PATH)) {
+        $candidates += $env:CHIP_TOOL_WSL_PATH.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:CHIP_TOOL_PATH)) {
+        $candidates += $env:CHIP_TOOL_PATH.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($homePath)) {
+        $candidates += "$homePath/umatter-work/connectedhomeip/out/chip-tool/chip-tool"
+        $candidates += "$homePath/connectedhomeip/out/chip-tool/chip-tool"
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        $null = (& wsl.exe -d Ubuntu test -x $candidate 2>$null | Out-String)
+        if ($LASTEXITCODE -eq 0) {
+            return $candidate
+        }
+    }
+
+    return ""
+}
+
 if (-not [string]::IsNullOrWhiteSpace($ChipToolWslPath)) {
     $chipToolResolved = $ChipToolWslPath.Trim()
     $chipToolMode = "wsl"
@@ -159,7 +192,7 @@ if (-not [string]::IsNullOrWhiteSpace($ChipToolWslPath)) {
         $chipToolResolved = $cmd.Source
         $chipToolMode = "windows"
     } else {
-        $wslChipTool = (& wsl.exe bash -lc "command -v chip-tool || true" 2>$null | Out-String).Trim()
+        $wslChipTool = Resolve-WslChipToolAutoPath
         if (-not [string]::IsNullOrWhiteSpace($wslChipTool)) {
             $chipToolResolved = $wslChipTool
             $chipToolMode = "wsl"

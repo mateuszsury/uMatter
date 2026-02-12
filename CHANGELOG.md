@@ -24,6 +24,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Phase 0 step-28 extended network advertising diagnostics (`mdns_published`, `mdns_last_error`, `manual_override`) in runtime and Python APIs.
 - Phase 0 step-29 ESP compile-path fix for user module (`ESP_PLATFORM=1` in `micropython.cmake`) to keep runtime on native mDNS path.
 - Phase 0 step-30 runtime commissionable mDNS subtype publishing (`_L...`, `_S...`) with rollback on subtype registration failure.
+- Phase 0 step-31 chip-tool WSL auto-detection in step12 (PATH + env + common HOME candidates), removing false `unavailable_tool` when binary exists outside PATH.
 
 ### Changed
 

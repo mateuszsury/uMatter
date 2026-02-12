@@ -38,6 +38,9 @@ typedef struct {
     uint8_t transport_mode;
     bool network_advertising;
     uint8_t network_advertising_reason;
+    bool network_advertising_manual_override;
+    bool network_advertising_mdns_published;
+    int network_advertising_mdns_last_error;
     uint16_t discriminator;
     uint32_t passcode;
     char name[UMATTER_CORE_NAME_MAX + 1];
@@ -115,17 +118,32 @@ static void umatter_core_unpublish_commissionable(int handle) {
     g_umatter_commissionable_owner_handle = 0;
 }
 
-static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle) {
+static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle, int *mdns_error_out) {
     mdns_txt_item_t txt[7];
+    esp_err_t err = ESP_FAIL;
     char discriminator_str[8];
     char vendor_product_str[16];
 
+    if (mdns_error_out != NULL) {
+        *mdns_error_out = 0;
+    }
+
     if (g_umatter_commissionable_registered) {
-        return g_umatter_commissionable_owner_handle == handle;
+        if (g_umatter_commissionable_owner_handle == handle) {
+            return true;
+        }
+        if (mdns_error_out != NULL) {
+            *mdns_error_out = ESP_ERR_INVALID_STATE;
+        }
+        return false;
     }
 
     if (!g_umatter_mdns_initialized) {
-        if (mdns_init() != ESP_OK) {
+        err = mdns_init();
+        if (err != ESP_OK) {
+            if (mdns_error_out != NULL) {
+                *mdns_error_out = (int)err;
+            }
             return false;
         }
         g_umatter_mdns_initialized = true;
@@ -151,7 +169,11 @@ static bool umatter_core_publish_commissionable(const umatter_core_node_t *node,
     txt[6].key = "PI";
     txt[6].value = "Use chip-tool";
 
-    if (mdns_service_add(node->name, "_matterc", "_udp", 5540, txt, sizeof(txt) / sizeof(txt[0])) != ESP_OK) {
+    err = mdns_service_add(node->name, "_matterc", "_udp", 5540, txt, sizeof(txt) / sizeof(txt[0]));
+    if (err != ESP_OK) {
+        if (mdns_error_out != NULL) {
+            *mdns_error_out = (int)err;
+        }
         return false;
     }
 
@@ -164,19 +186,25 @@ static void umatter_core_unpublish_commissionable(int handle) {
     (void)handle;
 }
 
-static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle) {
+static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle, int *mdns_error_out) {
     (void)node;
     (void)handle;
+    if (mdns_error_out != NULL) {
+        *mdns_error_out = UMATTER_CORE_ERR_NOT_FOUND;
+    }
     return false;
 }
 #endif
 
 static void umatter_core_reconcile_network_advertising(umatter_core_node_t *node, int handle) {
+    int mdns_error = 0;
     int ready_reason = umatter_core_commissioning_ready_reason_from_node(node);
     if (ready_reason != UMATTER_CORE_READY_REASON_READY) {
         umatter_core_unpublish_commissionable(handle);
         node->network_advertising = false;
         node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
+        node->network_advertising_manual_override = false;
+        node->network_advertising_mdns_published = false;
         return;
     }
 
@@ -188,11 +216,16 @@ static void umatter_core_reconcile_network_advertising(umatter_core_node_t *node
     if (node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY ||
         node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN ||
         node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED) {
-        if (umatter_core_publish_commissionable(node, handle)) {
+        node->network_advertising_manual_override = false;
+        if (umatter_core_publish_commissionable(node, handle, &mdns_error)) {
             node->network_advertising = true;
             node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT;
+            node->network_advertising_mdns_published = true;
+            node->network_advertising_mdns_last_error = 0;
         } else {
             node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED;
+            node->network_advertising_mdns_published = false;
+            node->network_advertising_mdns_last_error = mdns_error;
         }
     }
 }
@@ -219,6 +252,9 @@ int umatter_core_create(uint16_t vendor_id, uint16_t product_id, const char *nam
             g_nodes[slot].transport_mode = UMATTER_CORE_TRANSPORT_NONE;
             g_nodes[slot].network_advertising = false;
             g_nodes[slot].network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
+            g_nodes[slot].network_advertising_manual_override = false;
+            g_nodes[slot].network_advertising_mdns_published = false;
+            g_nodes[slot].network_advertising_mdns_last_error = 0;
             g_nodes[slot].discriminator = UMATTER_CORE_DEFAULT_DISCRIMINATOR;
             g_nodes[slot].passcode = UMATTER_CORE_DEFAULT_PASSCODE;
             memcpy(g_nodes[slot].name, name, len);
@@ -492,16 +528,23 @@ int umatter_core_set_network_advertising(int handle, int advertising, uint8_t re
     if (ready_reason != UMATTER_CORE_READY_REASON_READY) {
         node->network_advertising = false;
         node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
+        node->network_advertising_manual_override = false;
+        node->network_advertising_mdns_published = false;
         return advertising ? UMATTER_CORE_ERR_STATE : UMATTER_CORE_OK;
     }
 
     if (advertising != 0) {
         node->network_advertising = true;
         node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT;
+        node->network_advertising_manual_override = true;
+        node->network_advertising_mdns_published = false;
+        node->network_advertising_mdns_last_error = 0;
         return UMATTER_CORE_OK;
     }
 
     node->network_advertising = false;
+    node->network_advertising_manual_override = false;
+    node->network_advertising_mdns_published = false;
     if (reason_code == UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT ||
         reason_code == UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN ||
         reason_code == UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY) {
@@ -524,5 +567,29 @@ int umatter_core_get_network_advertising(int handle, int *advertising_out, uint8
     umatter_core_reconcile_network_advertising(node, handle);
     *advertising_out = node->network_advertising ? 1 : 0;
     *reason_code_out = node->network_advertising_reason;
+    return UMATTER_CORE_OK;
+}
+
+int umatter_core_get_network_advertising_details(int handle,
+                                                 int *advertising_out,
+                                                 uint8_t *reason_code_out,
+                                                 int *mdns_published_out,
+                                                 int *mdns_last_error_out,
+                                                 int *manual_override_out) {
+    umatter_core_node_t *node = umatter_core_node_from_handle(handle);
+    if (node == NULL) {
+        return UMATTER_CORE_ERR_NOT_FOUND;
+    }
+    if (advertising_out == NULL || reason_code_out == NULL || mdns_published_out == NULL ||
+        mdns_last_error_out == NULL || manual_override_out == NULL) {
+        return UMATTER_CORE_ERR_INVALID_ARG;
+    }
+
+    umatter_core_reconcile_network_advertising(node, handle);
+    *advertising_out = node->network_advertising ? 1 : 0;
+    *reason_code_out = node->network_advertising_reason;
+    *mdns_published_out = node->network_advertising_mdns_published ? 1 : 0;
+    *mdns_last_error_out = node->network_advertising_mdns_last_error;
+    *manual_override_out = node->network_advertising_manual_override ? 1 : 0;
     return UMATTER_CORE_OK;
 }

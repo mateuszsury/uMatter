@@ -170,6 +170,32 @@ static mp_obj_t mod_umatter_core_get_network_advertising(mp_obj_t handle_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_umatter_core_get_network_advertising_obj, mod_umatter_core_get_network_advertising);
 
+static mp_obj_t mod_umatter_core_get_network_advertising_details(mp_obj_t handle_in) {
+    int advertising = 0;
+    int mdns_published = 0;
+    int mdns_last_error = 0;
+    int manual_override = 0;
+    uint8_t reason_code = UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
+    int rc = umatter_core_get_network_advertising_details(mp_obj_get_int(handle_in),
+                                                           &advertising,
+                                                           &reason_code,
+                                                           &mdns_published,
+                                                           &mdns_last_error,
+                                                           &manual_override);
+    if (rc < 0) {
+        return mp_obj_new_int(rc);
+    }
+    mp_obj_t items[5] = {
+        mp_obj_new_bool(advertising != 0),
+        mp_obj_new_int_from_uint(reason_code),
+        mp_obj_new_bool(mdns_published != 0),
+        mp_obj_new_int(mdns_last_error),
+        mp_obj_new_bool(manual_override != 0),
+    };
+    return mp_obj_new_tuple(5, items);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_umatter_core_get_network_advertising_details_obj, mod_umatter_core_get_network_advertising_details);
+
 static const mp_rom_map_elem_t mod_umatter_core_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR__umatter_core) },
     { MP_ROM_QSTR(MP_QSTR_create), MP_ROM_PTR(&mod_umatter_core_create_obj) },
@@ -191,6 +217,7 @@ static const mp_rom_map_elem_t mod_umatter_core_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_commissioning_ready_reason), MP_ROM_PTR(&mod_umatter_core_commissioning_ready_reason_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_network_advertising), MP_ROM_PTR(&mod_umatter_core_set_network_advertising_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_network_advertising), MP_ROM_PTR(&mod_umatter_core_get_network_advertising_obj) },
+    { MP_ROM_QSTR(MP_QSTR_get_network_advertising_details), MP_ROM_PTR(&mod_umatter_core_get_network_advertising_details_obj) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_NONE), MP_ROM_INT(UMATTER_CORE_TRANSPORT_NONE) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_WIFI), MP_ROM_INT(UMATTER_CORE_TRANSPORT_WIFI) },
     { MP_ROM_QSTR(MP_QSTR_TRANSPORT_THREAD), MP_ROM_INT(UMATTER_CORE_TRANSPORT_THREAD) },

@@ -13,6 +13,10 @@
 - Device-level diagnostics expose `network_advertising` and `network_advertising_reason` with runtime contract:
   - integrated path: `True/signal_present`
   - fallback path: `False/not_integrated`
+- Device-level diagnostics additionally expose mDNS internals for advertising debug:
+  - `network_advertising_mdns_published`
+  - `network_advertising_mdns_last_error`
+  - `network_advertising_manual_override`
 - Controller-side gate supports `chip-tool` discovery precheck (`discover find-commissionable-by-long-discriminator`) before pairing.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 

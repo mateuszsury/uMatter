@@ -46,5 +46,11 @@ int umatter_core_commissioning_ready(int handle);
 int umatter_core_commissioning_ready_reason(int handle);
 int umatter_core_set_network_advertising(int handle, int advertising, uint8_t reason_code);
 int umatter_core_get_network_advertising(int handle, int *advertising_out, uint8_t *reason_code_out);
+int umatter_core_get_network_advertising_details(int handle,
+                                                 int *advertising_out,
+                                                 uint8_t *reason_code_out,
+                                                 int *mdns_published_out,
+                                                 int *mdns_last_error_out,
+                                                 int *manual_override_out);
 
 #endif

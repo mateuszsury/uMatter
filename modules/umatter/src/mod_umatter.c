@@ -431,6 +431,9 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     int endpoint_count = 0;
     int ready_reason = UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED;
     int network_advertising = 0;
+    int network_advertising_mdns_published = 0;
+    int network_advertising_mdns_last_error = 0;
+    int network_advertising_manual_override = 0;
     uint8_t network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN;
     char manual_code[12];
     char qr_code[32];
@@ -458,7 +461,12 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     if (ready_reason < 0) {
         umatter_raise_from_rc(ready_reason);
     }
-    rc = umatter_core_get_network_advertising(self->handle, &network_advertising, &network_advertising_reason);
+    rc = umatter_core_get_network_advertising_details(self->handle,
+                                                      &network_advertising,
+                                                      &network_advertising_reason,
+                                                      &network_advertising_mdns_published,
+                                                      &network_advertising_mdns_last_error,
+                                                      &network_advertising_manual_override);
     if (rc < 0) {
         umatter_raise_from_rc(rc);
     }
@@ -480,6 +488,15 @@ static mp_obj_t umatter_node_commissioning_diagnostics(mp_obj_t self_in) {
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_transport), umatter_transport_mode_to_obj(transport_mode));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising), mp_obj_new_bool(network_advertising != 0));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising_reason), umatter_network_advertising_reason_to_obj(network_advertising_reason));
+    mp_obj_dict_store(dict_obj,
+                      MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising_manual_override),
+                      mp_obj_new_bool(network_advertising_manual_override != 0));
+    mp_obj_dict_store(dict_obj,
+                      MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising_mdns_published),
+                      mp_obj_new_bool(network_advertising_mdns_published != 0));
+    mp_obj_dict_store(dict_obj,
+                      MP_OBJ_NEW_QSTR(MP_QSTR_network_advertising_mdns_last_error),
+                      mp_obj_new_int(network_advertising_mdns_last_error));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_discriminator), mp_obj_new_int_from_uint(discriminator));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_passcode), mp_obj_new_int_from_uint(passcode));
     mp_obj_dict_store(dict_obj, MP_OBJ_NEW_QSTR(MP_QSTR_manual_code), mp_obj_new_str(manual_code, strlen(manual_code)));

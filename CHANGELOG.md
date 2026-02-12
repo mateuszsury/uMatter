@@ -21,6 +21,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Phase 0 step-25 Python mock gateway discovery harness (`scripts/mock_matter_gateway.py`, `phase0_step25_mock_gateway_discovery.ps1`) and discovery fallback in step12 (`discover commissionables`).
 - Phase 0 step-26 virtual Matter device pairing runner (`phase0_step26_virtual_device_pairing.ps1`) validating `gate_status=pass` with `chip-all-clusters-app`.
 - Phase 0 step-27 runtime mDNS hook for commissionable advertisement in core (`umatter_core_runtime.c`) with ESP-side publish/unpublish reconciliation.
+- Phase 0 step-28 extended network advertising diagnostics (`mdns_published`, `mdns_last_error`, `manual_override`) in runtime and Python APIs.
 
 ### Changed
 
@@ -31,6 +32,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `scripts/phase0_step12_chiptool_gate.ps1` now supports optional chip-tool discovery precheck (`RunDiscoveryPrecheck`, `DiscoveryTimeoutSeconds`) before pairing.
 - `scripts/phase0_step16_commissioning_runtime_diag.ps1` now accepts both valid runtime network-advertising outcomes: `False/not_integrated` and `True/signal_present`.
 - `scripts/phase0_step02_c5_e2e.ps1` smoke phase now retries `mpremote` (`SmokeRetries`, `SmokeRetryDelaySeconds`) to reduce false negatives after reset.
+- `scripts/phase0_step16_commissioning_runtime_diag.ps1` now validates mDNS advertising diagnostics and `_umatter_core.get_network_advertising_details(...)`.
 
 ## [0.1.0] - 2026-02-11
 

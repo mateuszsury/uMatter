@@ -92,6 +92,8 @@ print("C16:N_DIAG_TRANSPORT", d["transport"])
 print("C16:N_DIAG_READY", d["ready"])
 print("C16:N_DIAG_STARTED", d["started"])
 print("C16:N_DIAG_EP", d["endpoint_count"])
+print("C16:N_DIAG_NET_ADV", d.get("network_advertising", False))
+print("C16:N_DIAG_NET_REASON", d.get("network_advertising_reason", "missing"))
 print("C16:N_DIAG_MANUAL", d["manual_code"])
 print("C16:N_DIAG_QR", d["qr_code"])
 n.stop()
@@ -111,6 +113,8 @@ print("C16:L_DIAG_REASON", dl["ready_reason"])
 print("C16:L_DIAG_TRANSPORT", dl["transport"])
 print("C16:L_DIAG_READY", dl["ready"])
 print("C16:L_DIAG_EP", dl["endpoint_count"])
+print("C16:L_DIAG_NET_ADV", dl.get("network_advertising", False))
+print("C16:L_DIAG_NET_REASON", dl.get("network_advertising_reason", "missing"))
 l.stop()
 print("C16:L_READY2", l.commissioning_ready())
 print("C16:L_REASON2", l.commissioning_ready_reason())
@@ -166,6 +170,8 @@ required = [
     "C16:N_DIAG_TRANSPORT thread",
     "C16:N_DIAG_READY True",
     "C16:N_DIAG_STARTED True",
+    "C16:N_DIAG_NET_ADV False",
+    "C16:N_DIAG_NET_REASON",
     "C16:N_READY3 False",
     "C16:N_REASON4 node_not_started",
     "C16:L_TRANSPORT0 wifi",
@@ -177,6 +183,8 @@ required = [
     "C16:L_DIAG_REASON ready",
     "C16:L_DIAG_TRANSPORT wifi",
     "C16:L_DIAG_READY True",
+    "C16:L_DIAG_NET_ADV False",
+    "C16:L_DIAG_NET_REASON",
     "C16:L_READY2 False",
     "C16:L_REASON2 node_not_started",
     "C16:C_TRANS0 0",

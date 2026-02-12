@@ -14,6 +14,7 @@ param(
     [switch]$RunPairing,
     [string]$UseOnNetworkLong = "true",
     [string]$RequireRuntimeReadyForPairing = "true",
+    [string]$RequireNetworkAdvertisingForPairing = "false",
     [switch]$SkipRuntimeDiag,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
@@ -37,8 +38,9 @@ function Convert-ToBool {
     throw "$ParamName must be one of: true/false/1/0/yes/no/on/off"
 }
 
-$UseOnNetworkLong = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
-$RequireRuntimeReadyForPairing = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
+$UseOnNetworkLongBool = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
+$RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
+$RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
     $Instance = "c19-" + (Get-Date -Format "yyyyMMdd-HHmmss")
@@ -99,7 +101,8 @@ $gateParams = @{
     Instance = $gateInstance
     ArtifactsRoot = $ArtifactsRoot
     NodeId = $NodeId
-    RequireRuntimeReadyForPairing = $RequireRuntimeReadyForPairing
+    RequireRuntimeReadyForPairing = $RequireRuntimeReadyForPairingBool
+    RequireNetworkAdvertisingForPairing = $RequireNetworkAdvertisingForPairingBool
 }
 if (-not [string]::IsNullOrWhiteSpace($CommissioningDataPath)) {
     $gateParams.CommissioningDataPath = $CommissioningDataPath
@@ -119,7 +122,7 @@ if (-not [string]::IsNullOrWhiteSpace($ChipToolWslPath)) {
 if ($RunPairing) {
     $gateParams.RunPairing = $true
 }
-if (-not $UseOnNetworkLong) {
+if (-not $UseOnNetworkLongBool) {
     $gateParams.UseOnNetworkLong = $false
 }
 
@@ -150,6 +153,10 @@ $result = [ordered]@{
     gate_runtime_ready_reason = $gateResult.runtime_ready_reason
     gate_runtime_state = $gateResult.runtime_state
     gate_runtime_gate_blocked = $gateResult.runtime_gate_blocked
+    gate_network_advertising_known = $gateResult.network_advertising_known
+    gate_network_advertising = $gateResult.network_advertising
+    gate_network_advertising_reason = $gateResult.network_advertising_reason
+    gate_network_gate_blocked = $gateResult.network_gate_blocked
     run_pairing = [bool]$RunPairing
     node_id = $NodeId
 }

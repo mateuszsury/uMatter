@@ -8,6 +8,7 @@ param(
     [switch]$RunPairing,
     [string]$UseOnNetworkLong = "true",
     [string]$RequireRuntimeReadyForPairing = "true",
+    [string]$RequireNetworkAdvertisingForPairing = "false",
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
 )
@@ -30,8 +31,9 @@ function Convert-ToBool {
     throw "$ParamName must be one of: true/false/1/0/yes/no/on/off"
 }
 
-$UseOnNetworkLong = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
-$RequireRuntimeReadyForPairing = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
+$UseOnNetworkLongBool = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
+$RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
+$RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
     $Instance = "c12-" + (Get-Date -Format "yyyyMMdd-HHmmss")
@@ -208,6 +210,9 @@ function Parse-RuntimeDiagnosticsLog {
             ready_reason_code = -1
             runtime = ""
             ready = $false
+            network_advertising_known = $false
+            network_advertising = $false
+            network_advertising_reason = ""
         }
     }
 
@@ -221,6 +226,9 @@ function Parse-RuntimeDiagnosticsLog {
             ready_reason_code = -1
             runtime = ""
             ready = $false
+            network_advertising_known = $false
+            network_advertising = $false
+            network_advertising_reason = ""
         }
     }
 
@@ -229,6 +237,8 @@ function Parse-RuntimeDiagnosticsLog {
     $reasonCodeMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_REASON_CODE\s+(-?\d+)\s*$')
     $runtimeMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_RUNTIME\s+([A-Za-z0-9_]+)\s*$')
     $readyMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_READY\s+(True|False)\s*$')
+    $networkAdvertisingMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_NET_ADV\s+(True|False)\s*$')
+    $networkAdvertisingReasonMatch = [regex]::Match($text, '(?m)^C16:N_DIAG_NET_REASON\s+([A-Za-z0-9_]+)\s*$')
 
     $readyReason = ""
     if ($reasonMatch.Success) {
@@ -254,6 +264,18 @@ function Parse-RuntimeDiagnosticsLog {
         $readyBool = $true
     }
 
+    $networkAdvertisingKnown = $false
+    $networkAdvertising = $false
+    if ($networkAdvertisingMatch.Success) {
+        $networkAdvertisingKnown = $true
+        $networkAdvertising = $networkAdvertisingMatch.Groups[1].Value -eq "True"
+    }
+
+    $networkAdvertisingReason = ""
+    if ($networkAdvertisingReasonMatch.Success) {
+        $networkAdvertisingReason = $networkAdvertisingReasonMatch.Groups[1].Value
+    }
+
     if ([string]::IsNullOrWhiteSpace($readyReason) -and [string]::IsNullOrWhiteSpace($runtimeState) -and -not $readyMatch.Success) {
         return [PSCustomObject]@{
             status = "invalid"
@@ -262,6 +284,9 @@ function Parse-RuntimeDiagnosticsLog {
             ready_reason_code = -1
             runtime = ""
             ready = $false
+            network_advertising_known = $networkAdvertisingKnown
+            network_advertising = $networkAdvertising
+            network_advertising_reason = $networkAdvertisingReason
         }
     }
 
@@ -273,6 +298,9 @@ function Parse-RuntimeDiagnosticsLog {
             ready_reason_code = $readyReasonCode
             runtime = $runtimeState
             ready = $true
+            network_advertising_known = $networkAdvertisingKnown
+            network_advertising = $networkAdvertising
+            network_advertising_reason = $networkAdvertisingReason
         }
     }
 
@@ -283,6 +311,9 @@ function Parse-RuntimeDiagnosticsLog {
         ready_reason_code = $readyReasonCode
         runtime = $runtimeState
         ready = $false
+        network_advertising_known = $networkAdvertisingKnown
+        network_advertising = $networkAdvertising
+        network_advertising_reason = $networkAdvertisingReason
     }
 }
 
@@ -316,6 +347,9 @@ $runtimeReadyReason = [string]$runtimeDiag.ready_reason
 $runtimeReadyReasonCode = [int]$runtimeDiag.ready_reason_code
 $runtimeState = [string]$runtimeDiag.runtime
 $runtimeReady = [bool]$runtimeDiag.ready
+$networkAdvertisingKnown = [bool]$runtimeDiag.network_advertising_known
+$networkAdvertising = [bool]$runtimeDiag.network_advertising
+$networkAdvertisingReason = [string]$runtimeDiag.network_advertising_reason
 
 $preflightOutput = ""
 $pairingOutput = ""
@@ -324,14 +358,14 @@ $pairingExit = -999
 $status = "blocked_tool_missing"
 $statusReason = "chip-tool binary not found in PATH"
 $pairingMode = "onnetwork-long"
-if (-not $UseOnNetworkLong) {
+if (-not $UseOnNetworkLongBool) {
     $pairingMode = "onnetwork"
 }
 $pairingCommand = "chip-tool pairing $pairingMode $NodeId $passcode $discriminator"
 
 $pairingArgs = @("pairing", $pairingMode, "$NodeId", "$passcode", "$discriminator")
 $runtimeGateBlocked = $false
-if ($RunPairing -and $RequireRuntimeReadyForPairing -and $runtimeDiagStatus -ne "ready") {
+if ($RunPairing -and $RequireRuntimeReadyForPairingBool -and $runtimeDiagStatus -ne "ready") {
     $runtimeGateBlocked = $true
     $status = "blocked_runtime_not_ready"
     $statusReason = "runtime diagnostics gate: $runtimeDiagStatusReason"
@@ -341,8 +375,24 @@ if ($RunPairing -and $RequireRuntimeReadyForPairing -and $runtimeDiagStatus -ne 
     Set-Content -Path $preflightLogPath -Value $statusReason -Encoding UTF8
     Set-Content -Path $pairingLogPath -Value "pairing skipped: runtime not ready" -Encoding UTF8
 }
+$networkGateBlocked = $false
+if ($RunPairing -and -not $runtimeGateBlocked -and $RequireNetworkAdvertisingForPairingBool -and (-not $networkAdvertisingKnown -or -not $networkAdvertising)) {
+    $networkGateBlocked = $true
+    $status = "blocked_network_not_advertising"
+    $statusReason = "network diagnostics gate: mDNS advertisement not confirmed"
+    if ($networkAdvertisingKnown) {
+        $statusReason += " (network_advertising=False)"
+    } else {
+        $statusReason += " (network_advertising=unknown)"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($networkAdvertisingReason)) {
+        $statusReason += " (reason=$networkAdvertisingReason)"
+    }
+    Set-Content -Path $preflightLogPath -Value $statusReason -Encoding UTF8
+    Set-Content -Path $pairingLogPath -Value "pairing skipped: network advertising not ready" -Encoding UTF8
+}
 
-if (-not $runtimeGateBlocked -and -not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
+if (-not $runtimeGateBlocked -and -not $networkGateBlocked -and -not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
     $preflightResult = Invoke-ChipToolCommand -Mode $chipToolMode -BinaryPath $chipToolResolved -ToolArgs @("pairing")
     $preflightOutput = $preflightResult.Output
     $preflightExit = $preflightResult.ExitCode
@@ -380,13 +430,21 @@ if (-not $runtimeGateBlocked -and -not [string]::IsNullOrWhiteSpace($chipToolRes
         $status = "fail_preflight"
         $statusReason = "chip-tool preflight output did not match expected command-set usage"
     }
-} elseif (-not $runtimeGateBlocked) {
+} elseif (-not $runtimeGateBlocked -and -not $networkGateBlocked) {
     Set-Content -Path $preflightLogPath -Value "chip-tool not found" -Encoding UTF8
 }
 
 $detailsParts = @($statusReason, "manual=$nodeManualCode", "codes=$codesStatus", "runtime=$runtimeDiagStatus")
 if (-not [string]::IsNullOrWhiteSpace($runtimeReadyReason)) {
     $detailsParts += "ready_reason=$runtimeReadyReason"
+}
+if ($networkAdvertisingKnown) {
+    $detailsParts += "net_adv=$networkAdvertising"
+} else {
+    $detailsParts += "net_adv=unknown"
+}
+if (-not [string]::IsNullOrWhiteSpace($networkAdvertisingReason)) {
+    $detailsParts += "net_reason=$networkAdvertisingReason"
 }
 if (-not [string]::IsNullOrWhiteSpace($nodeQrCode)) {
     $detailsParts += "qr=$nodeQrCode"
@@ -433,8 +491,13 @@ $result = [ordered]@{
     runtime_ready = $runtimeReady
     runtime_ready_reason = $runtimeReadyReason
     runtime_ready_reason_code = $runtimeReadyReasonCode
-    require_runtime_ready_for_pairing = $RequireRuntimeReadyForPairing
+    require_runtime_ready_for_pairing = $RequireRuntimeReadyForPairingBool
+    require_network_advertising_for_pairing = $RequireNetworkAdvertisingForPairingBool
     runtime_gate_blocked = $runtimeGateBlocked
+    network_advertising_known = $networkAdvertisingKnown
+    network_advertising = $networkAdvertising
+    network_advertising_reason = $networkAdvertisingReason
+    network_gate_blocked = $networkGateBlocked
     run_pairing = [bool]$RunPairing
     preflight_exit = $preflightExit
     pairing_exit = $pairingExit

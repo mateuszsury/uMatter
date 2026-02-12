@@ -31,6 +31,8 @@ typedef struct {
     uint16_t vendor_id;
     uint16_t product_id;
     uint8_t transport_mode;
+    bool network_advertising;
+    uint8_t network_advertising_reason;
     uint16_t discriminator;
     uint32_t passcode;
     char name[UMATTER_CORE_NAME_MAX + 1];
@@ -66,6 +68,51 @@ static umatter_core_endpoint_t *umatter_core_find_endpoint(umatter_core_node_t *
     return NULL;
 }
 
+static int umatter_core_commissioning_ready_reason_from_node(const umatter_core_node_t *node) {
+    if (node->transport_mode == UMATTER_CORE_TRANSPORT_NONE) {
+        return UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED;
+    }
+    if (node->endpoint_count == 0) {
+        return UMATTER_CORE_READY_REASON_NO_ENDPOINTS;
+    }
+    if (!node->started) {
+        return UMATTER_CORE_READY_REASON_NODE_NOT_STARTED;
+    }
+    return UMATTER_CORE_READY_REASON_READY;
+}
+
+static bool umatter_core_network_advertising_reason_valid(uint8_t reason_code) {
+    switch (reason_code) {
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN:
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY:
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED:
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT:
+        case UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_LOST:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static void umatter_core_reconcile_network_advertising(umatter_core_node_t *node) {
+    int ready_reason = umatter_core_commissioning_ready_reason_from_node(node);
+    if (ready_reason != UMATTER_CORE_READY_REASON_READY) {
+        node->network_advertising = false;
+        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
+        return;
+    }
+
+    if (node->network_advertising) {
+        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT;
+        return;
+    }
+
+    if (node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY ||
+        node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN) {
+        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED;
+    }
+}
+
 int umatter_core_create(uint16_t vendor_id, uint16_t product_id, const char *name) {
     size_t len = 0;
     int slot = 0;
@@ -86,6 +133,8 @@ int umatter_core_create(uint16_t vendor_id, uint16_t product_id, const char *nam
             g_nodes[slot].vendor_id = vendor_id;
             g_nodes[slot].product_id = product_id;
             g_nodes[slot].transport_mode = UMATTER_CORE_TRANSPORT_NONE;
+            g_nodes[slot].network_advertising = false;
+            g_nodes[slot].network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
             g_nodes[slot].discriminator = UMATTER_CORE_DEFAULT_DISCRIMINATOR;
             g_nodes[slot].passcode = UMATTER_CORE_DEFAULT_PASSCODE;
             memcpy(g_nodes[slot].name, name, len);
@@ -106,6 +155,7 @@ int umatter_core_start(int handle) {
         return UMATTER_CORE_ERR_STATE;
     }
     g_nodes[slot].started = true;
+    umatter_core_reconcile_network_advertising(&g_nodes[slot]);
     return UMATTER_CORE_OK;
 }
 
@@ -118,6 +168,7 @@ int umatter_core_stop(int handle) {
         return UMATTER_CORE_ERR_STATE;
     }
     g_nodes[slot].started = false;
+    umatter_core_reconcile_network_advertising(&g_nodes[slot]);
     return UMATTER_CORE_OK;
 }
 
@@ -162,6 +213,7 @@ int umatter_core_add_endpoint(int handle, uint16_t endpoint_id, uint32_t device_
             endpoint->cluster_count = 0;
             memset(endpoint->cluster_ids, 0, sizeof(endpoint->cluster_ids));
             node->endpoint_count += 1;
+            umatter_core_reconcile_network_advertising(node);
             return UMATTER_CORE_OK;
         }
     }
@@ -306,6 +358,7 @@ int umatter_core_set_transport(int handle, uint8_t transport_mode) {
         return UMATTER_CORE_ERR_INVALID_ARG;
     }
     node->transport_mode = transport_mode;
+    umatter_core_reconcile_network_advertising(node);
     return UMATTER_CORE_OK;
 }
 
@@ -334,15 +387,57 @@ int umatter_core_commissioning_ready_reason(int handle) {
     if (node == NULL) {
         return UMATTER_CORE_ERR_NOT_FOUND;
     }
+    return umatter_core_commissioning_ready_reason_from_node(node);
+}
 
-    if (node->transport_mode == UMATTER_CORE_TRANSPORT_NONE) {
-        return UMATTER_CORE_READY_REASON_TRANSPORT_NOT_CONFIGURED;
+int umatter_core_set_network_advertising(int handle, int advertising, uint8_t reason_code) {
+    umatter_core_node_t *node = umatter_core_node_from_handle(handle);
+    int ready_reason = 0;
+    if (node == NULL) {
+        return UMATTER_CORE_ERR_NOT_FOUND;
     }
-    if (node->endpoint_count == 0) {
-        return UMATTER_CORE_READY_REASON_NO_ENDPOINTS;
+    if (advertising != 0 && advertising != 1) {
+        return UMATTER_CORE_ERR_INVALID_ARG;
     }
-    if (!node->started) {
-        return UMATTER_CORE_READY_REASON_NODE_NOT_STARTED;
+    if (!umatter_core_network_advertising_reason_valid(reason_code)) {
+        return UMATTER_CORE_ERR_INVALID_ARG;
     }
-    return UMATTER_CORE_READY_REASON_READY;
+
+    ready_reason = umatter_core_commissioning_ready_reason_from_node(node);
+    if (ready_reason != UMATTER_CORE_READY_REASON_READY) {
+        node->network_advertising = false;
+        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
+        return advertising ? UMATTER_CORE_ERR_STATE : UMATTER_CORE_OK;
+    }
+
+    if (advertising != 0) {
+        node->network_advertising = true;
+        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT;
+        return UMATTER_CORE_OK;
+    }
+
+    node->network_advertising = false;
+    if (reason_code == UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT ||
+        reason_code == UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN ||
+        reason_code == UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY) {
+        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_LOST;
+    } else {
+        node->network_advertising_reason = reason_code;
+    }
+    return UMATTER_CORE_OK;
+}
+
+int umatter_core_get_network_advertising(int handle, int *advertising_out, uint8_t *reason_code_out) {
+    umatter_core_node_t *node = umatter_core_node_from_handle(handle);
+    if (node == NULL) {
+        return UMATTER_CORE_ERR_NOT_FOUND;
+    }
+    if (advertising_out == NULL || reason_code_out == NULL) {
+        return UMATTER_CORE_ERR_INVALID_ARG;
+    }
+
+    umatter_core_reconcile_network_advertising(node);
+    *advertising_out = node->network_advertising ? 1 : 0;
+    *reason_code_out = node->network_advertising_reason;
+    return UMATTER_CORE_OK;
 }

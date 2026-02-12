@@ -15,6 +15,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Phase 0 step-19 e2e runner (`scripts/phase0_step19_commissioning_gate_e2e.ps1`) to chain runtime diagnostics and chip-tool gate.
 - Phase 0 step-20 network diagnostics fields (`network_advertising`, `network_advertising_reason`) in commissioning diagnostics.
 - Phase 0 step-21 discovery precheck fields (`discovery_precheck_*`) in chip-tool gate and e2e runner.
+- Phase 0 step-22 runtime advertising contract in core (`set/get_network_advertising`, reason codes) with diagnostics wired to core state.
 
 ### Changed
 

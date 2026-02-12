@@ -15,8 +15,10 @@ param(
     [string]$UseOnNetworkLong = "true",
     [string]$RequireRuntimeReadyForPairing = "true",
     [string]$RequireNetworkAdvertisingForPairing = "false",
+    [string]$RequireDiscoveryFoundForPairing = "false",
     [string]$RunDiscoveryPrecheck = "true",
     [int]$DiscoveryTimeoutSeconds = 8,
+    [switch]$SimulateNetworkAdvertising,
     [switch]$SkipRuntimeDiag,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
@@ -43,10 +45,14 @@ function Convert-ToBool {
 $UseOnNetworkLongBool = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
 $RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
 $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
+$RequireDiscoveryFoundForPairingBool = Convert-ToBool -Value $RequireDiscoveryFoundForPairing -ParamName "RequireDiscoveryFoundForPairing"
 $RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
 
 if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
     throw "DiscoveryTimeoutSeconds must be in range 1..120"
+}
+if ($RequireDiscoveryFoundForPairingBool -and -not $RunDiscoveryPrecheckBool) {
+    throw "RequireDiscoveryFoundForPairing=true requires RunDiscoveryPrecheck=true"
 }
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
@@ -80,6 +86,9 @@ if (-not $SkipRuntimeDiag) {
         Instance = $runtimeDiagInstance
         ArtifactsRoot = $ArtifactsRoot
     }
+    if ($SimulateNetworkAdvertising) {
+        $diagParams.SimulateNetworkAdvertising = $true
+    }
     $diagOutput = (& $diagScriptPath @diagParams 2>&1 | Out-String)
     Set-Content -Path $diagInvokeLogPath -Value $diagOutput -Encoding UTF8
 
@@ -110,6 +119,7 @@ $gateParams = @{
     NodeId = $NodeId
     RequireRuntimeReadyForPairing = $RequireRuntimeReadyForPairingBool
     RequireNetworkAdvertisingForPairing = $RequireNetworkAdvertisingForPairingBool
+    RequireDiscoveryFoundForPairing = $RequireDiscoveryFoundForPairingBool
     RunDiscoveryPrecheck = $RunDiscoveryPrecheckBool
     DiscoveryTimeoutSeconds = $DiscoveryTimeoutSeconds
 }
@@ -166,6 +176,8 @@ $result = [ordered]@{
     gate_network_advertising = $gateResult.network_advertising
     gate_network_advertising_reason = $gateResult.network_advertising_reason
     gate_network_gate_blocked = $gateResult.network_gate_blocked
+    gate_discovery_gate_blocked = $gateResult.discovery_gate_blocked
+    gate_require_discovery_found_for_pairing = $gateResult.require_discovery_found_for_pairing
     gate_discovery_precheck_enabled = $gateResult.discovery_precheck_enabled
     gate_discovery_precheck_status = $gateResult.discovery_precheck_status
     gate_discovery_precheck_status_reason = $gateResult.discovery_precheck_status_reason
@@ -173,6 +185,7 @@ $result = [ordered]@{
     gate_discovery_precheck_exit = $gateResult.discovery_precheck_exit
     gate_discovery_precheck_log = $gateResult.discovery_precheck_log
     run_pairing = [bool]$RunPairing
+    simulate_network_advertising = [bool]$SimulateNetworkAdvertising
     node_id = $NodeId
 }
 

@@ -9,6 +9,7 @@ param(
     [string]$UseOnNetworkLong = "true",
     [string]$RequireRuntimeReadyForPairing = "true",
     [string]$RequireNetworkAdvertisingForPairing = "false",
+    [string]$RequireDiscoveryFoundForPairing = "false",
     [string]$RunDiscoveryPrecheck = "true",
     [int]$DiscoveryTimeoutSeconds = 8,
     [string]$Instance = "",
@@ -36,10 +37,14 @@ function Convert-ToBool {
 $UseOnNetworkLongBool = Convert-ToBool -Value $UseOnNetworkLong -ParamName "UseOnNetworkLong"
 $RequireRuntimeReadyForPairingBool = Convert-ToBool -Value $RequireRuntimeReadyForPairing -ParamName "RequireRuntimeReadyForPairing"
 $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetworkAdvertisingForPairing -ParamName "RequireNetworkAdvertisingForPairing"
+$RequireDiscoveryFoundForPairingBool = Convert-ToBool -Value $RequireDiscoveryFoundForPairing -ParamName "RequireDiscoveryFoundForPairing"
 $RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
 
 if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
     throw "DiscoveryTimeoutSeconds must be in range 1..120"
+}
+if ($RequireDiscoveryFoundForPairingBool -and -not $RunDiscoveryPrecheckBool) {
+    throw "RequireDiscoveryFoundForPairing=true requires RunDiscoveryPrecheck=true"
 }
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
@@ -460,8 +465,19 @@ if ($RunPairing -and -not $runtimeGateBlocked -and $RequireNetworkAdvertisingFor
     Set-Content -Path $preflightLogPath -Value $statusReason -Encoding UTF8
     Set-Content -Path $pairingLogPath -Value "pairing skipped: network advertising not ready" -Encoding UTF8
 }
+$discoveryGateBlocked = $false
+if ($RunPairing -and -not $runtimeGateBlocked -and $RequireDiscoveryFoundForPairingBool -and -not $discoveryPrecheckFound) {
+    $discoveryGateBlocked = $true
+    $status = "blocked_discovery_not_found"
+    $statusReason = "discovery gate: commissionable entry not found before pairing"
+    if (-not [string]::IsNullOrWhiteSpace($discoveryPrecheckStatus)) {
+        $statusReason += " (discovery_status=$discoveryPrecheckStatus)"
+    }
+    Set-Content -Path $preflightLogPath -Value $statusReason -Encoding UTF8
+    Set-Content -Path $pairingLogPath -Value "pairing skipped: discovery precheck did not find commissionable entry" -Encoding UTF8
+}
 
-if (-not $runtimeGateBlocked -and -not $networkGateBlocked -and -not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
+if (-not $runtimeGateBlocked -and -not $networkGateBlocked -and -not $discoveryGateBlocked -and -not [string]::IsNullOrWhiteSpace($chipToolResolved)) {
     $preflightResult = Invoke-ChipToolCommand -Mode $chipToolMode -BinaryPath $chipToolResolved -ToolArgs @("pairing")
     $preflightOutput = $preflightResult.Output
     $preflightExit = $preflightResult.ExitCode
@@ -499,7 +515,7 @@ if (-not $runtimeGateBlocked -and -not $networkGateBlocked -and -not [string]::I
         $status = "fail_preflight"
         $statusReason = "chip-tool preflight output did not match expected command-set usage"
     }
-} elseif (-not $runtimeGateBlocked -and -not $networkGateBlocked) {
+} elseif (-not $runtimeGateBlocked -and -not $networkGateBlocked -and -not $discoveryGateBlocked) {
     Set-Content -Path $preflightLogPath -Value "chip-tool not found" -Encoding UTF8
 }
 
@@ -517,6 +533,9 @@ if (-not [string]::IsNullOrWhiteSpace($networkAdvertisingReason)) {
 }
 if ($discoveryPrecheckEnabled) {
     $detailsParts += "discover=$discoveryPrecheckStatus"
+}
+if ($RequireDiscoveryFoundForPairingBool) {
+    $detailsParts += "discover_required=true"
 }
 if (-not [string]::IsNullOrWhiteSpace($nodeQrCode)) {
     $detailsParts += "qr=$nodeQrCode"
@@ -565,6 +584,7 @@ $result = [ordered]@{
     runtime_ready_reason_code = $runtimeReadyReasonCode
     require_runtime_ready_for_pairing = $RequireRuntimeReadyForPairingBool
     require_network_advertising_for_pairing = $RequireNetworkAdvertisingForPairingBool
+    require_discovery_found_for_pairing = $RequireDiscoveryFoundForPairingBool
     run_discovery_precheck = $RunDiscoveryPrecheckBool
     discovery_timeout_seconds = $DiscoveryTimeoutSeconds
     discovery_precheck_enabled = $discoveryPrecheckEnabled
@@ -580,6 +600,7 @@ $result = [ordered]@{
     network_advertising = $networkAdvertising
     network_advertising_reason = $networkAdvertisingReason
     network_gate_blocked = $networkGateBlocked
+    discovery_gate_blocked = $discoveryGateBlocked
     run_pairing = [bool]$RunPairing
     preflight_exit = $preflightExit
     pairing_exit = $pairingExit

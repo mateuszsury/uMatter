@@ -10,4 +10,8 @@ target_include_directories(usermod_umatter INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
+target_compile_definitions(usermod_umatter INTERFACE
+    ESP_PLATFORM=1
+)
+
 target_link_libraries(usermod INTERFACE usermod_umatter)

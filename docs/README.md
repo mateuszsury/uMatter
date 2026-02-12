@@ -35,3 +35,4 @@
 16. `docs/phase-0/step-28-network-advertising-mdns-diagnostics.md`
 17. `docs/phase-0/step-29-esp-platform-compile-path-fix.md`
 18. `docs/phase-0/step-30-runtime-mdns-commissionable-subtypes.md`
+19. `docs/phase-0/step-31-chiptool-wsl-auto-detect.md`

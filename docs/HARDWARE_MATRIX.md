@@ -20,6 +20,7 @@
 - Runtime mDNS publication now adds commissionable subtypes `_L<discriminator>` and `_S<discriminator_low4>` on ESP path.
 - Latest ESP32-C6 run on `COM11` reports integrated advertising path (`True/signal_present`, `mdns_published=True`), while controller discovery is still `not_found`.
 - Controller-side gate supports `chip-tool` discovery precheck (`discover find-commissionable-by-long-discriminator`) before pairing.
+- Controller-side gate now auto-detects WSL `chip-tool` from common locations, so missing PATH no longer forces `unavailable_tool`.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 
 ## Planned Expansion

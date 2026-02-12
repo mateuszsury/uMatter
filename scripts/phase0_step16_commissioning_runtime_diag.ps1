@@ -103,6 +103,9 @@ print("C16:N_DIAG_STARTED", d["started"])
 print("C16:N_DIAG_EP", d["endpoint_count"])
 print("C16:N_DIAG_NET_ADV", d.get("network_advertising", False))
 print("C16:N_DIAG_NET_REASON", d.get("network_advertising_reason", "missing"))
+print("C16:N_DIAG_NET_MDNS_PUB", d.get("network_advertising_mdns_published", "missing"))
+print("C16:N_DIAG_NET_MDNS_ERR", d.get("network_advertising_mdns_last_error", "missing"))
+print("C16:N_DIAG_NET_MANUAL", d.get("network_advertising_manual_override", "missing"))
 print("C16:N_DIAG_MANUAL", d["manual_code"])
 print("C16:N_DIAG_QR", d["qr_code"])
 n.stop()
@@ -129,6 +132,9 @@ print("C16:L_DIAG_READY", dl["ready"])
 print("C16:L_DIAG_EP", dl["endpoint_count"])
 print("C16:L_DIAG_NET_ADV", dl.get("network_advertising", False))
 print("C16:L_DIAG_NET_REASON", dl.get("network_advertising_reason", "missing"))
+print("C16:L_DIAG_NET_MDNS_PUB", dl.get("network_advertising_mdns_published", "missing"))
+print("C16:L_DIAG_NET_MDNS_ERR", dl.get("network_advertising_mdns_last_error", "missing"))
+print("C16:L_DIAG_NET_MANUAL", dl.get("network_advertising_manual_override", "missing"))
 l.stop()
 print("C16:L_READY2", l.commissioning_ready())
 print("C16:L_REASON2", l.commissioning_ready_reason())
@@ -147,10 +153,13 @@ print("C16:C_START", c.start(h))
 print("C16:C_READY1", c.commissioning_ready(h))
 print("C16:C_REASON3", c.commissioning_ready_reason(h))
 print("C16:C_NET1", c.get_network_advertising(h))
+print("C16:C_NET1D", c.get_network_advertising_details(h))
 print("C16:C_SET_NET1", c.set_network_advertising(h, True, c.NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT))
 print("C16:C_NET2", c.get_network_advertising(h))
+print("C16:C_NET2D", c.get_network_advertising_details(h))
 print("C16:C_SET_NET2", c.set_network_advertising(h, False, c.NETWORK_ADVERTISING_REASON_SIGNAL_LOST))
 print("C16:C_NET3", c.get_network_advertising(h))
+print("C16:C_NET3D", c.get_network_advertising_details(h))
 print("C16:C_STOP", c.stop(h))
 print("C16:C_READY2", c.commissioning_ready(h))
 print("C16:C_REASON4", c.commissioning_ready_reason(h))
@@ -192,6 +201,9 @@ required = [
     "C16:N_DIAG_TRANSPORT thread",
     "C16:N_DIAG_READY True",
     "C16:N_DIAG_STARTED True",
+    "C16:N_DIAG_NET_MDNS_PUB",
+    "C16:N_DIAG_NET_MDNS_ERR",
+    "C16:N_DIAG_NET_MANUAL",
     "C16:N_READY3 False",
     "C16:N_REASON4 node_not_started",
     "C16:L_TRANSPORT0 wifi",
@@ -203,6 +215,9 @@ required = [
     "C16:L_DIAG_REASON ready",
     "C16:L_DIAG_TRANSPORT wifi",
     "C16:L_DIAG_READY True",
+    "C16:L_DIAG_NET_MDNS_PUB",
+    "C16:L_DIAG_NET_MDNS_ERR",
+    "C16:L_DIAG_NET_MANUAL",
     "C16:L_READY2 False",
     "C16:L_REASON2 node_not_started",
     "C16:C_TRANS0 0",
@@ -217,10 +232,13 @@ required = [
     "C16:C_START 0",
     "C16:C_READY1 1",
     "C16:C_REASON3 0",
+    "C16:C_NET1D (",
     "C16:C_SET_NET1 0",
     "C16:C_NET2 (True, 3)",
+    "C16:C_NET2D (",
     "C16:C_SET_NET2 0",
     "C16:C_NET3 (False, 4)",
+    "C16:C_NET3D (",
     "C16:C_STOP 0",
     "C16:C_READY2 0",
     "C16:C_REASON4 3",
@@ -234,10 +252,12 @@ if simulate_net_adv:
         "C16:N_SET_NET1_REASON signal_present",
         "C16:N_DIAG_NET_ADV True",
         "C16:N_DIAG_NET_REASON signal_present",
+        "C16:N_DIAG_NET_MANUAL True",
         "C16:L_SET_NET1_ADV True",
         "C16:L_SET_NET1_REASON signal_present",
         "C16:L_DIAG_NET_ADV True",
         "C16:L_DIAG_NET_REASON signal_present",
+        "C16:L_DIAG_NET_MANUAL True",
     ])
 missing = [m for m in required if m not in output]
 extra_missing = []
@@ -250,19 +270,44 @@ if not any(all(marker in output for marker in variant) for variant in core_net1_
     extra_missing.append("C16:C_NET1 variant")
 
 if not simulate_net_adv:
+    if "C16:N_DIAG_NET_MANUAL False" not in output:
+        extra_missing.append("C16:N_DIAG_NET_MANUAL False")
+    if "C16:L_DIAG_NET_MANUAL False" not in output:
+        extra_missing.append("C16:L_DIAG_NET_MANUAL False")
+
     node_net_variants = [
-        ["C16:N_DIAG_NET_ADV False", "C16:N_DIAG_NET_REASON not_integrated"],
-        ["C16:N_DIAG_NET_ADV True", "C16:N_DIAG_NET_REASON signal_present"],
+        [
+            "C16:N_DIAG_NET_ADV False",
+            "C16:N_DIAG_NET_REASON not_integrated",
+            "C16:N_DIAG_NET_MDNS_PUB False",
+            "C16:N_DIAG_NET_MDNS_ERR",
+        ],
+        [
+            "C16:N_DIAG_NET_ADV True",
+            "C16:N_DIAG_NET_REASON signal_present",
+            "C16:N_DIAG_NET_MDNS_PUB True",
+            "C16:N_DIAG_NET_MDNS_ERR 0",
+        ],
     ]
     if not any(all(marker in output for marker in variant) for variant in node_net_variants):
-        extra_missing.append("C16:N_DIAG_NET_ADV/REASON variant")
+        extra_missing.append("C16:N_DIAG_NET_* variant")
 
     light_net_variants = [
-        ["C16:L_DIAG_NET_ADV False", "C16:L_DIAG_NET_REASON not_integrated"],
-        ["C16:L_DIAG_NET_ADV True", "C16:L_DIAG_NET_REASON signal_present"],
+        [
+            "C16:L_DIAG_NET_ADV False",
+            "C16:L_DIAG_NET_REASON not_integrated",
+            "C16:L_DIAG_NET_MDNS_PUB False",
+            "C16:L_DIAG_NET_MDNS_ERR",
+        ],
+        [
+            "C16:L_DIAG_NET_ADV True",
+            "C16:L_DIAG_NET_REASON signal_present",
+            "C16:L_DIAG_NET_MDNS_PUB True",
+            "C16:L_DIAG_NET_MDNS_ERR 0",
+        ],
     ]
     if not any(all(marker in output for marker in variant) for variant in light_net_variants):
-        extra_missing.append("C16:L_DIAG_NET_ADV/REASON variant")
+        extra_missing.append("C16:L_DIAG_NET_* variant")
 
 missing.extend(extra_missing)
 if missing:

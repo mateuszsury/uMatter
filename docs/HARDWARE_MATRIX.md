@@ -10,6 +10,7 @@
 ## Notes
 
 - Device-level commissioning diagnostics expose runtime state and ready reason (`runtime`, `ready_reason`, `ready_reason_code`) and are consumed by chip-tool gate.
+- Device-level diagnostics also expose `network_advertising` and `network_advertising_reason`; in current PoC runtime this is `False/not_integrated`.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 
 ## Planned Expansion

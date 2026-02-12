@@ -9,6 +9,8 @@ param(
     [string]$PartitionCsv = "",
     [string]$ArtifactsRoot = "artifacts/esp32c5",
     [string]$SmokeExpr = "import sys,os; print(sys.implementation); print(os.uname())",
+    [int]$SmokeRetries = 5,
+    [int]$SmokeRetryDelaySeconds = 2,
     [switch]$SkipBuild,
     [switch]$SkipFlash,
     [switch]$SkipSmoke
@@ -65,6 +67,12 @@ New-Item -ItemType Directory -Path $artifactDirAbs -Force | Out-Null
 $allPorts = [System.IO.Ports.SerialPort]::GetPortNames()
 if ($allPorts -notcontains $ComPort) {
     throw "COM port not found: $ComPort"
+}
+if ($SmokeRetries -lt 1 -or $SmokeRetries -gt 20) {
+    throw "SmokeRetries must be in range 1..20"
+}
+if ($SmokeRetryDelaySeconds -lt 1 -or $SmokeRetryDelaySeconds -gt 30) {
+    throw "SmokeRetryDelaySeconds must be in range 1..30"
 }
 
 if (-not $SkipBuild) {
@@ -133,9 +141,19 @@ if (-not $SkipFlash) {
 
 if (-not $SkipSmoke) {
     Start-Sleep -Seconds 4
-    & python -m mpremote connect $ComPort exec $SmokeExpr
-    if ($LASTEXITCODE -ne 0) {
-        throw "Smoke test failed with code $LASTEXITCODE"
+    $smokePassed = $false
+    for ($attempt = 1; $attempt -le $SmokeRetries; $attempt++) {
+        & python -m mpremote connect $ComPort exec $SmokeExpr
+        if ($LASTEXITCODE -eq 0) {
+            $smokePassed = $true
+            break
+        }
+        if ($attempt -lt $SmokeRetries) {
+            Start-Sleep -Seconds $SmokeRetryDelaySeconds
+        }
+    }
+    if (-not $smokePassed) {
+        throw "Smoke test failed after $SmokeRetries attempts"
     }
 }
 

@@ -5,6 +5,11 @@
 
 #include "umatter_core.h"
 
+#if defined(ESP_PLATFORM)
+#include "mdns.h"
+#include "esp_err.h"
+#endif
+
 #define UMATTER_CORE_MAX_NODES (4)
 #define UMATTER_CORE_NAME_MAX (32)
 #define UMATTER_CORE_MAX_ENDPOINTS_PER_NODE (8)
@@ -41,6 +46,12 @@ typedef struct {
 } umatter_core_node_t;
 
 static umatter_core_node_t g_nodes[UMATTER_CORE_MAX_NODES];
+
+#if defined(ESP_PLATFORM)
+static bool g_umatter_mdns_initialized = false;
+static bool g_umatter_commissionable_registered = false;
+static int g_umatter_commissionable_owner_handle = 0;
+#endif
 
 static int umatter_core_slot_from_handle(int handle) {
     int slot = handle - 1;
@@ -94,9 +105,76 @@ static bool umatter_core_network_advertising_reason_valid(uint8_t reason_code) {
     }
 }
 
-static void umatter_core_reconcile_network_advertising(umatter_core_node_t *node) {
+#if defined(ESP_PLATFORM)
+static void umatter_core_unpublish_commissionable(int handle) {
+    if (!g_umatter_commissionable_registered || g_umatter_commissionable_owner_handle != handle) {
+        return;
+    }
+    (void)mdns_service_remove("_matterc", "_udp");
+    g_umatter_commissionable_registered = false;
+    g_umatter_commissionable_owner_handle = 0;
+}
+
+static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle) {
+    mdns_txt_item_t txt[7];
+    char discriminator_str[8];
+    char vendor_product_str[16];
+
+    if (g_umatter_commissionable_registered) {
+        return g_umatter_commissionable_owner_handle == handle;
+    }
+
+    if (!g_umatter_mdns_initialized) {
+        if (mdns_init() != ESP_OK) {
+            return false;
+        }
+        g_umatter_mdns_initialized = true;
+    }
+
+    (void)snprintf(discriminator_str, sizeof(discriminator_str), "%u", (unsigned)node->discriminator);
+    (void)snprintf(vendor_product_str, sizeof(vendor_product_str), "%u+%u", (unsigned)node->vendor_id, (unsigned)node->product_id);
+    (void)mdns_hostname_set("umatter-node");
+    (void)mdns_instance_name_set(node->name);
+
+    txt[0].key = "D";
+    txt[0].value = discriminator_str;
+    txt[1].key = "VP";
+    txt[1].value = vendor_product_str;
+    txt[2].key = "CM";
+    txt[2].value = "1";
+    txt[3].key = "DT";
+    txt[3].value = "256";
+    txt[4].key = "DN";
+    txt[4].value = node->name;
+    txt[5].key = "PH";
+    txt[5].value = "33";
+    txt[6].key = "PI";
+    txt[6].value = "Use chip-tool";
+
+    if (mdns_service_add(node->name, "_matterc", "_udp", 5540, txt, sizeof(txt) / sizeof(txt[0])) != ESP_OK) {
+        return false;
+    }
+
+    g_umatter_commissionable_registered = true;
+    g_umatter_commissionable_owner_handle = handle;
+    return true;
+}
+#else
+static void umatter_core_unpublish_commissionable(int handle) {
+    (void)handle;
+}
+
+static bool umatter_core_publish_commissionable(const umatter_core_node_t *node, int handle) {
+    (void)node;
+    (void)handle;
+    return false;
+}
+#endif
+
+static void umatter_core_reconcile_network_advertising(umatter_core_node_t *node, int handle) {
     int ready_reason = umatter_core_commissioning_ready_reason_from_node(node);
     if (ready_reason != UMATTER_CORE_READY_REASON_READY) {
+        umatter_core_unpublish_commissionable(handle);
         node->network_advertising = false;
         node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY;
         return;
@@ -108,8 +186,14 @@ static void umatter_core_reconcile_network_advertising(umatter_core_node_t *node
     }
 
     if (node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_RUNTIME_NOT_READY ||
-        node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN) {
-        node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED;
+        node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_UNKNOWN ||
+        node->network_advertising_reason == UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED) {
+        if (umatter_core_publish_commissionable(node, handle)) {
+            node->network_advertising = true;
+            node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_SIGNAL_PRESENT;
+        } else {
+            node->network_advertising_reason = UMATTER_CORE_NETWORK_ADVERTISING_REASON_NOT_INTEGRATED;
+        }
     }
 }
 
@@ -155,7 +239,7 @@ int umatter_core_start(int handle) {
         return UMATTER_CORE_ERR_STATE;
     }
     g_nodes[slot].started = true;
-    umatter_core_reconcile_network_advertising(&g_nodes[slot]);
+    umatter_core_reconcile_network_advertising(&g_nodes[slot], handle);
     return UMATTER_CORE_OK;
 }
 
@@ -168,7 +252,7 @@ int umatter_core_stop(int handle) {
         return UMATTER_CORE_ERR_STATE;
     }
     g_nodes[slot].started = false;
-    umatter_core_reconcile_network_advertising(&g_nodes[slot]);
+    umatter_core_reconcile_network_advertising(&g_nodes[slot], handle);
     return UMATTER_CORE_OK;
 }
 
@@ -177,6 +261,7 @@ int umatter_core_destroy(int handle) {
     if (slot < 0 || !g_nodes[slot].in_use) {
         return UMATTER_CORE_ERR_NOT_FOUND;
     }
+    umatter_core_unpublish_commissionable(handle);
     memset(&g_nodes[slot], 0, sizeof(g_nodes[slot]));
     return UMATTER_CORE_OK;
 }
@@ -213,7 +298,7 @@ int umatter_core_add_endpoint(int handle, uint16_t endpoint_id, uint32_t device_
             endpoint->cluster_count = 0;
             memset(endpoint->cluster_ids, 0, sizeof(endpoint->cluster_ids));
             node->endpoint_count += 1;
-            umatter_core_reconcile_network_advertising(node);
+            umatter_core_reconcile_network_advertising(node, handle);
             return UMATTER_CORE_OK;
         }
     }
@@ -358,7 +443,7 @@ int umatter_core_set_transport(int handle, uint8_t transport_mode) {
         return UMATTER_CORE_ERR_INVALID_ARG;
     }
     node->transport_mode = transport_mode;
-    umatter_core_reconcile_network_advertising(node);
+    umatter_core_reconcile_network_advertising(node, handle);
     return UMATTER_CORE_OK;
 }
 
@@ -436,7 +521,7 @@ int umatter_core_get_network_advertising(int handle, int *advertising_out, uint8
         return UMATTER_CORE_ERR_INVALID_ARG;
     }
 
-    umatter_core_reconcile_network_advertising(node);
+    umatter_core_reconcile_network_advertising(node, handle);
     *advertising_out = node->network_advertising ? 1 : 0;
     *reason_code_out = node->network_advertising_reason;
     return UMATTER_CORE_OK;

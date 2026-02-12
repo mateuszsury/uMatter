@@ -217,7 +217,6 @@ required = [
     "C16:C_START 0",
     "C16:C_READY1 1",
     "C16:C_REASON3 0",
-    "C16:C_NET1 (False, 2)",
     "C16:C_SET_NET1 0",
     "C16:C_NET2 (True, 3)",
     "C16:C_SET_NET2 0",
@@ -240,14 +239,32 @@ if simulate_net_adv:
         "C16:L_DIAG_NET_ADV True",
         "C16:L_DIAG_NET_REASON signal_present",
     ])
-else:
-    required.extend([
-        "C16:N_DIAG_NET_ADV False",
-        "C16:N_DIAG_NET_REASON",
-        "C16:L_DIAG_NET_ADV False",
-        "C16:L_DIAG_NET_REASON",
-    ])
 missing = [m for m in required if m not in output]
+extra_missing = []
+
+core_net1_variants = [
+    ["C16:C_NET1 (False, 2)"],
+    ["C16:C_NET1 (True, 3)"],
+]
+if not any(all(marker in output for marker in variant) for variant in core_net1_variants):
+    extra_missing.append("C16:C_NET1 variant")
+
+if not simulate_net_adv:
+    node_net_variants = [
+        ["C16:N_DIAG_NET_ADV False", "C16:N_DIAG_NET_REASON not_integrated"],
+        ["C16:N_DIAG_NET_ADV True", "C16:N_DIAG_NET_REASON signal_present"],
+    ]
+    if not any(all(marker in output for marker in variant) for variant in node_net_variants):
+        extra_missing.append("C16:N_DIAG_NET_ADV/REASON variant")
+
+    light_net_variants = [
+        ["C16:L_DIAG_NET_ADV False", "C16:L_DIAG_NET_REASON not_integrated"],
+        ["C16:L_DIAG_NET_ADV True", "C16:L_DIAG_NET_REASON signal_present"],
+    ]
+    if not any(all(marker in output for marker in variant) for variant in light_net_variants):
+        extra_missing.append("C16:L_DIAG_NET_ADV/REASON variant")
+
+missing.extend(extra_missing)
 if missing:
     print("C16:MISSING_MARKERS")
     for m in missing:

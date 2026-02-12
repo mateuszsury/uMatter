@@ -10,7 +10,9 @@
 ## Notes
 
 - Device-level commissioning diagnostics expose runtime state and ready reason (`runtime`, `ready_reason`, `ready_reason_code`) and are consumed by chip-tool gate.
-- Device-level diagnostics also expose `network_advertising` and `network_advertising_reason`; in current PoC runtime this is `False/not_integrated`.
+- Device-level diagnostics expose `network_advertising` and `network_advertising_reason` with runtime contract:
+  - integrated path: `True/signal_present`
+  - fallback path: `False/not_integrated`
 - Controller-side gate supports `chip-tool` discovery precheck (`discover find-commissionable-by-long-discriminator`) before pairing.
 - Full commissioning e2e (`chip-tool` pairing pass) is tracked as next-phase runtime task.
 

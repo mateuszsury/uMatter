@@ -29,3 +29,4 @@
 10. `docs/phase-0/step-22-runtime-network-advertising-state-contract.md`
 11. `docs/phase-0/step-23-network-advertising-node-hook-and-gate-positive-path.md`
 12. `docs/phase-0/step-24-discovery-required-gate.md`
+13. `docs/phase-0/step-25-python-mock-gateway-discovery.md`

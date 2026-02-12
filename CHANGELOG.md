@@ -18,6 +18,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Phase 0 step-22 runtime advertising contract in core (`set/get_network_advertising`, reason codes) with diagnostics wired to core state.
 - Phase 0 step-23 `umatter.Node` advertising hook (`set_network_advertising`, `network_advertising`) and step16 simulation mode for positive gate path checks.
 - Phase 0 step-24 discovery-required gate (`RequireDiscoveryFoundForPairing`) with deterministic `blocked_discovery_not_found` status and step19 propagation.
+- Phase 0 step-25 Python mock gateway discovery harness (`scripts/mock_matter_gateway.py`, `phase0_step25_mock_gateway_discovery.ps1`) and discovery fallback in step12 (`discover commissionables`).
 
 ### Changed
 

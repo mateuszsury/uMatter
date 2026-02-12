@@ -377,6 +377,8 @@ $discoveryPrecheckFound = $false
 $discoveryPrecheckExit = -999
 $discoveryPrecheckMode = "none"
 $discoveryPrecheckLog = ""
+$discoveryPrecheckMethod = "none"
+$discoveryPrecheckFallbackUsed = $false
 
 $preflightOutput = ""
 $pairingOutput = ""
@@ -413,6 +415,7 @@ if ($RunPairing -and $RequireNetworkAdvertisingForPairingBool -and $RunDiscovery
         $discoveryPrecheckStatusReason = "discovery precheck currently supports wsl chip-tool mode only"
     } else {
         $discoveryPrecheckMode = $chipToolMode
+        $discoveryPrecheckMethod = "long_discriminator"
         $discoverCommand = "set -o pipefail; timeout ${DiscoveryTimeoutSeconds}s '$chipToolResolved' discover find-commissionable-by-long-discriminator $discriminator --discover-once true 2>&1 | cat"
         $prevErr = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
@@ -421,25 +424,57 @@ if ($RunPairing -and $RequireNetworkAdvertisingForPairingBool -and $RunDiscovery
         } finally {
             $ErrorActionPreference = $prevErr
         }
-        $discoveryPrecheckExit = $LASTEXITCODE
-        $discoveryPrecheckLog = $discoverOutput
-        Set-Content -Path $discoveryLogPath -Value $discoverOutput -Encoding UTF8
+        $primaryExit = $LASTEXITCODE
+        $primaryClean = Strip-AnsiEscapeCodes -Text $discoverOutput
+        $foundByLongDiscriminator = $primaryClean -match "(?im)Long\s+Discriminator\s*:\s*$discriminator(\D|$)"
+        $foundByInstanceName = $primaryClean -match '(?im)Instance\s+Name\s*:'
+        $foundByVendor = $primaryClean -match '(?im)Vendor\s+ID\s*:'
+        $primaryFound = $foundByLongDiscriminator -or $foundByInstanceName -or $foundByVendor
+        $combinedDiscoveryLog = "=== discover find-commissionable-by-long-discriminator ===`r`n$discoverOutput"
+        $fallbackExit = -999
+        $fallbackFound = $false
 
-        $discoverOutputClean = Strip-AnsiEscapeCodes -Text $discoverOutput
-        $foundByLongDiscriminator = $discoverOutputClean -match '(?im)^\s*Long discriminator\s*:'
-        $foundByInstanceName = $discoverOutputClean -match '(?im)^\s*Instance name\s*:'
-        $foundByVendor = $discoverOutputClean -match '(?im)^\s*Vendor ID\s*:'
-        $discoveryPrecheckFound = $foundByLongDiscriminator -or $foundByInstanceName -or $foundByVendor
+        if (-not $primaryFound) {
+            $discoveryPrecheckFallbackUsed = $true
+            $fallbackCommand = "set -o pipefail; timeout ${DiscoveryTimeoutSeconds}s '$chipToolResolved' discover commissionables --discover-once true 2>&1 | cat"
+            $prevErr = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                $fallbackOutput = (& wsl.exe -d Ubuntu bash -lc $fallbackCommand 2>&1 | Out-String)
+            } finally {
+                $ErrorActionPreference = $prevErr
+            }
+            $fallbackExit = $LASTEXITCODE
+            $fallbackClean = Strip-AnsiEscapeCodes -Text $fallbackOutput
+            $fallbackFound = $fallbackClean -match "(?im)Long\s+Discriminator\s*:\s*$discriminator(\D|$)"
+            $combinedDiscoveryLog += "`r`n=== discover commissionables (fallback) ===`r`n$fallbackOutput"
+            if ($fallbackFound) {
+                $discoveryPrecheckMethod = "commissionables_fallback"
+            }
+        }
+
+        $discoveryPrecheckFound = $primaryFound -or $fallbackFound
+        if ($discoveryPrecheckFallbackUsed -and $fallbackExit -ne -999) {
+            $discoveryPrecheckExit = $fallbackExit
+        } else {
+            $discoveryPrecheckExit = $primaryExit
+        }
+        $discoveryPrecheckLog = $combinedDiscoveryLog
+        Set-Content -Path $discoveryLogPath -Value $discoveryPrecheckLog -Encoding UTF8
 
         if ($discoveryPrecheckFound) {
             $discoveryPrecheckStatus = "found"
             $discoveryPrecheckStatusReason = "commissionable discovery returned at least one matching entry"
             $networkAdvertisingKnown = $true
             $networkAdvertising = $true
-            $networkAdvertisingReason = "chip_tool_discovery"
+            $networkAdvertisingReason = if ($discoveryPrecheckMethod -eq "commissionables_fallback") { "chip_tool_discovery_fallback" } else { "chip_tool_discovery" }
         } else {
             $discoveryPrecheckStatus = "not_found"
-            $discoveryPrecheckStatusReason = "commissionable discovery did not return a matching entry"
+            if ($discoveryPrecheckFallbackUsed) {
+                $discoveryPrecheckStatusReason = "commissionable discovery did not return a matching entry (primary + fallback)"
+            } else {
+                $discoveryPrecheckStatusReason = "commissionable discovery did not return a matching entry"
+            }
             if (-not $networkAdvertisingKnown) {
                 $networkAdvertisingKnown = $true
                 $networkAdvertising = $false
@@ -533,6 +568,7 @@ if (-not [string]::IsNullOrWhiteSpace($networkAdvertisingReason)) {
 }
 if ($discoveryPrecheckEnabled) {
     $detailsParts += "discover=$discoveryPrecheckStatus"
+    $detailsParts += "discover_method=$discoveryPrecheckMethod"
 }
 if ($RequireDiscoveryFoundForPairingBool) {
     $detailsParts += "discover_required=true"
@@ -593,6 +629,8 @@ $result = [ordered]@{
     discovery_precheck_found = $discoveryPrecheckFound
     discovery_precheck_exit = $discoveryPrecheckExit
     discovery_precheck_mode = $discoveryPrecheckMode
+    discovery_precheck_method = $discoveryPrecheckMethod
+    discovery_precheck_fallback_used = $discoveryPrecheckFallbackUsed
     discovery_precheck_log = $discoveryLogPath
     discovery_precheck_discriminator = $discriminator
     runtime_gate_blocked = $runtimeGateBlocked

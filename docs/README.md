@@ -37,3 +37,4 @@
 18. `docs/phase-0/step-30-runtime-mdns-commissionable-subtypes.md`
 19. `docs/phase-0/step-31-chiptool-wsl-auto-detect.md`
 20. `docs/phase-0/step-32-host-mdns-discovery-probe.md`
+21. `docs/phase-0/step-33-host-mdns-windows-vs-wsl-probe.md`

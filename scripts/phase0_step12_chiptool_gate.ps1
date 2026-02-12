@@ -13,6 +13,7 @@ param(
     [string]$RunDiscoveryPrecheck = "true",
     [int]$DiscoveryTimeoutSeconds = 8,
     [string]$RunHostMdnsProbe = "true",
+    [string]$HostMdnsProbeMode = "wsl",
     [int]$HostMdnsProbeTimeoutSeconds = 6,
     [string]$Instance = "",
     [string]$ArtifactsRoot = "artifacts/commissioning"
@@ -42,12 +43,16 @@ $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetwork
 $RequireDiscoveryFoundForPairingBool = Convert-ToBool -Value $RequireDiscoveryFoundForPairing -ParamName "RequireDiscoveryFoundForPairing"
 $RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
 $RunHostMdnsProbeBool = Convert-ToBool -Value $RunHostMdnsProbe -ParamName "RunHostMdnsProbe"
+$HostMdnsProbeModeNormalized = $HostMdnsProbeMode.Trim().ToLowerInvariant()
 
 if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
     throw "DiscoveryTimeoutSeconds must be in range 1..120"
 }
 if ($HostMdnsProbeTimeoutSeconds -lt 1 -or $HostMdnsProbeTimeoutSeconds -gt 120) {
     throw "HostMdnsProbeTimeoutSeconds must be in range 1..120"
+}
+if (@("auto", "wsl", "windows", "both") -notcontains $HostMdnsProbeModeNormalized) {
+    throw "HostMdnsProbeMode must be one of: auto, wsl, windows, both"
 }
 if ($RequireDiscoveryFoundForPairingBool -and -not $RunDiscoveryPrecheckBool) {
     throw "RequireDiscoveryFoundForPairing=true requires RunDiscoveryPrecheck=true"
@@ -188,6 +193,206 @@ function Resolve-WslPathFromWindowsPath {
 
     $candidate = $WindowsPath -replace "\\", "/"
     return (& wsl.exe wslpath -a "$candidate" 2>$null | Out-String).Trim()
+}
+
+function Convert-ProbeOutputToResult {
+    param(
+        [string]$Mode,
+        [string]$Output,
+        [int]$ExitCode,
+        [string]$ResultJsonPath
+    )
+
+    $probeData = $null
+    try {
+        $probeData = $Output | ConvertFrom-Json
+    } catch {
+    }
+
+    if ($null -eq $probeData) {
+        return [PSCustomObject]@{
+            mode = $Mode
+            status = "invalid_output"
+            status_reason = "probe output is not valid JSON"
+            found = $false
+            service_count = 0
+            match_count = 0
+            exit_code = $ExitCode
+        }
+    }
+
+    $status = [string]$probeData.status
+    $found = [bool]$probeData.found
+    if ([string]::IsNullOrWhiteSpace($status)) {
+        $status = if ($found) { "found" } else { "not_found" }
+    }
+    $statusReason = [string]$probeData.status_reason
+    if ([string]::IsNullOrWhiteSpace($statusReason)) {
+        $statusReason = "probe completed"
+    }
+
+    $probeData | ConvertTo-Json -Depth 8 | Set-Content -Path $ResultJsonPath -Encoding UTF8
+
+    return [PSCustomObject]@{
+        mode = $Mode
+        status = $status
+        status_reason = $statusReason
+        found = $found
+        service_count = [int]$probeData.service_count
+        match_count = [int]$probeData.match_count
+        exit_code = $ExitCode
+    }
+}
+
+function Invoke-HostMdnsProbeWsl {
+    param(
+        [string]$ProbeScriptWin,
+        [int]$DiscriminatorValue,
+        [int]$TimeoutSeconds,
+        [string]$LogPath,
+        [string]$ResultJsonPath
+    )
+
+    $probeScriptWsl = Resolve-WslPathFromWindowsPath -WindowsPath $ProbeScriptWin
+    if ([string]::IsNullOrWhiteSpace($probeScriptWsl)) {
+        return [PSCustomObject]@{
+            mode = "wsl"
+            status = "unavailable_script_path"
+            status_reason = "failed to convert probe script path to WSL"
+            found = $false
+            service_count = 0
+            match_count = 0
+            exit_code = -999
+        }
+    }
+
+    $wslVenv = "/tmp/umatter-mdns-probe-venv"
+    $wslPython = "$wslVenv/bin/python3"
+    $setupCommand = "set -e; if [ ! -x '$wslPython' ]; then python3 -m venv '$wslVenv'; fi; '$wslPython' -m pip install -q zeroconf"
+    $setupOutput = ""
+    $setupExit = -999
+    $prevErr = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $setupOutput = (& wsl.exe -d Ubuntu bash -lc $setupCommand 2>&1 | Out-String)
+        $setupExit = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prevErr
+    }
+
+    if ($setupExit -ne 0) {
+        Set-Content -Path $LogPath -Value $setupOutput -Encoding UTF8
+        return [PSCustomObject]@{
+            mode = "wsl"
+            status = "unavailable_dependency"
+            status_reason = "failed to prepare WSL zeroconf environment"
+            found = $false
+            service_count = 0
+            match_count = 0
+            exit_code = $setupExit
+        }
+    }
+
+    $probeCommand = "'$wslPython' '$probeScriptWsl' --service-type '_matterc._udp.local.' --discriminator $DiscriminatorValue --timeout-seconds $TimeoutSeconds"
+    $probeOutput = ""
+    $probeExit = -999
+    $prevErr = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $probeOutput = (& wsl.exe -d Ubuntu bash -lc $probeCommand 2>&1 | Out-String)
+        $probeExit = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prevErr
+    }
+    Set-Content -Path $LogPath -Value $probeOutput -Encoding UTF8
+
+    return Convert-ProbeOutputToResult -Mode "wsl" -Output $probeOutput -ExitCode $probeExit -ResultJsonPath $ResultJsonPath
+}
+
+function Invoke-HostMdnsProbeWindows {
+    param(
+        [string]$ProbeScriptWin,
+        [int]$DiscriminatorValue,
+        [int]$TimeoutSeconds,
+        [string]$LogPath,
+        [string]$ResultJsonPath
+    )
+
+    $bootstrapPython = ""
+    $pyCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($null -ne $pyCmd) {
+        $bootstrapPython = $pyCmd.Source
+    } else {
+        $py3Cmd = Get-Command py -ErrorAction SilentlyContinue
+        if ($null -ne $py3Cmd) {
+            $bootstrapPython = $py3Cmd.Source
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($bootstrapPython)) {
+        return [PSCustomObject]@{
+            mode = "windows"
+            status = "unavailable_dependency"
+            status_reason = "python launcher not found on Windows host"
+            found = $false
+            service_count = 0
+            match_count = 0
+            exit_code = -999
+        }
+    }
+
+    $venvPath = Join-Path $env:TEMP "umatter-mdns-probe-win-venv"
+    $venvPython = Join-Path $venvPath "Scripts\python.exe"
+    if (-not (Test-Path $venvPython)) {
+        $null = (& $bootstrapPython -m venv $venvPath 2>&1 | Out-String)
+        if (-not (Test-Path $venvPython)) {
+            return [PSCustomObject]@{
+                mode = "windows"
+                status = "unavailable_dependency"
+                status_reason = "failed to create Windows venv for probe"
+                found = $false
+                service_count = 0
+                match_count = 0
+                exit_code = 1
+            }
+        }
+    }
+
+    $installExit = -999
+    $installOutput = ""
+    $prevErr = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $installOutput = (& $venvPython -m pip install -q zeroconf 2>&1 | Out-String)
+        $installExit = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prevErr
+    }
+    if ($installExit -ne 0) {
+        Set-Content -Path $LogPath -Value $installOutput -Encoding UTF8
+        return [PSCustomObject]@{
+            mode = "windows"
+            status = "unavailable_dependency"
+            status_reason = "failed to install zeroconf in Windows venv"
+            found = $false
+            service_count = 0
+            match_count = 0
+            exit_code = $installExit
+        }
+    }
+
+    $probeOutput = ""
+    $probeExit = -999
+    $prevNative = $PSNativeCommandUseErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+    try {
+        $probeOutput = (& $venvPython $ProbeScriptWin --service-type "_matterc._udp.local." --discriminator $DiscriminatorValue --timeout-seconds $TimeoutSeconds 2>&1 | Out-String)
+        $probeExit = $LASTEXITCODE
+    } finally {
+        $PSNativeCommandUseErrorActionPreference = $prevNative
+    }
+    Set-Content -Path $LogPath -Value $probeOutput -Encoding UTF8
+
+    return Convert-ProbeOutputToResult -Mode "windows" -Output $probeOutput -ExitCode $probeExit -ResultJsonPath $ResultJsonPath
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ChipToolWslPath)) {
@@ -392,6 +597,10 @@ $preflightLogPath = Join-Path $artifactDirAbs "chiptool_preflight.log"
 $discoveryLogPath = Join-Path $artifactDirAbs "chiptool_discovery.log"
 $hostMdnsProbeLogPath = Join-Path $artifactDirAbs "host_mdns_probe.log"
 $hostMdnsProbeJsonPath = Join-Path $artifactDirAbs "host_mdns_probe_result.json"
+$hostMdnsProbeWslLogPath = Join-Path $artifactDirAbs "host_mdns_probe_wsl.log"
+$hostMdnsProbeWslJsonPath = Join-Path $artifactDirAbs "host_mdns_probe_wsl_result.json"
+$hostMdnsProbeWindowsLogPath = Join-Path $artifactDirAbs "host_mdns_probe_windows.log"
+$hostMdnsProbeWindowsJsonPath = Join-Path $artifactDirAbs "host_mdns_probe_windows_result.json"
 $pairingLogPath = Join-Path $artifactDirAbs "chiptool_pairing.log"
 $matrixMdPath = Join-Path $artifactDirAbs "chiptool_matrix_row.md"
 $resultJsonPath = Join-Path $artifactDirAbs "chiptool_gate_result.json"
@@ -440,7 +649,20 @@ $hostMdnsProbeFound = $false
 $hostMdnsProbeServiceCount = 0
 $hostMdnsProbeMatchCount = 0
 $hostMdnsProbeMode = "none"
+$hostMdnsProbeModeRequested = $HostMdnsProbeModeNormalized
 $hostMdnsProbeExit = -999
+$hostMdnsProbeWslStatus = "skipped"
+$hostMdnsProbeWslStatusReason = "not requested"
+$hostMdnsProbeWslFound = $false
+$hostMdnsProbeWslServiceCount = 0
+$hostMdnsProbeWslMatchCount = 0
+$hostMdnsProbeWslExit = -999
+$hostMdnsProbeWindowsStatus = "skipped"
+$hostMdnsProbeWindowsStatusReason = "not requested"
+$hostMdnsProbeWindowsFound = $false
+$hostMdnsProbeWindowsServiceCount = 0
+$hostMdnsProbeWindowsMatchCount = 0
+$hostMdnsProbeWindowsExit = -999
 
 $preflightOutput = ""
 $pairingOutput = ""
@@ -472,79 +694,129 @@ if ($RunPairing -and $RequireNetworkAdvertisingForPairingBool -and $RunDiscovery
 
     if ($RunHostMdnsProbeBool) {
         $hostMdnsProbeEnabled = $true
-        $hostMdnsProbeMode = "wsl"
         $probeScriptWin = Join-Path $resolvedRoot "scripts/host_mdns_commissionable_probe.py"
         if (-not (Test-Path $probeScriptWin)) {
             $hostMdnsProbeStatus = "unavailable_script"
             $hostMdnsProbeStatusReason = "missing probe script: $probeScriptWin"
+            $hostMdnsProbeMode = "none"
         } else {
-            $probeScriptWsl = Resolve-WslPathFromWindowsPath -WindowsPath $probeScriptWin
-            if ([string]::IsNullOrWhiteSpace($probeScriptWsl)) {
-                $hostMdnsProbeStatus = "unavailable_script_path"
-                $hostMdnsProbeStatusReason = "failed to convert probe script path to WSL"
-            } else {
-                $wslVenv = "/tmp/umatter-mdns-probe-venv"
-                $wslPython = "$wslVenv/bin/python3"
-                $probeSetupCommand = "set -e; if [ ! -x '$wslPython' ]; then python3 -m venv '$wslVenv'; fi; '$wslPython' -m pip install -q zeroconf"
-                $setupExit = -999
-                $setupOutput = ""
-                $prevErr = $ErrorActionPreference
-                $ErrorActionPreference = "Continue"
-                try {
-                    $setupOutput = (& wsl.exe -d Ubuntu bash -lc $probeSetupCommand 2>&1 | Out-String)
-                    $setupExit = $LASTEXITCODE
-                } finally {
-                    $ErrorActionPreference = $prevErr
+            $runWslProbe = $false
+            $runWindowsProbe = $false
+            switch ($HostMdnsProbeModeNormalized) {
+                "wsl" {
+                    $runWslProbe = $true
                 }
+                "windows" {
+                    $runWindowsProbe = $true
+                }
+                "both" {
+                    $runWslProbe = $true
+                    $runWindowsProbe = $true
+                }
+                "auto" {
+                    $runWslProbe = $true
+                    $runWindowsProbe = $true
+                }
+            }
 
-                if ($setupExit -ne 0) {
-                    $hostMdnsProbeStatus = "unavailable_dependency"
-                    $hostMdnsProbeStatusReason = "failed to prepare WSL zeroconf environment"
-                    $hostMdnsProbeExit = $setupExit
-                    Set-Content -Path $hostMdnsProbeLogPath -Value $setupOutput -Encoding UTF8
+            $probeResults = @()
+            if ($runWslProbe) {
+                $wslResult = Invoke-HostMdnsProbeWsl -ProbeScriptWin $probeScriptWin -DiscriminatorValue $discriminator -TimeoutSeconds $HostMdnsProbeTimeoutSeconds -LogPath $hostMdnsProbeWslLogPath -ResultJsonPath $hostMdnsProbeWslJsonPath
+                $hostMdnsProbeWslStatus = [string]$wslResult.status
+                $hostMdnsProbeWslStatusReason = [string]$wslResult.status_reason
+                $hostMdnsProbeWslFound = [bool]$wslResult.found
+                $hostMdnsProbeWslServiceCount = [int]$wslResult.service_count
+                $hostMdnsProbeWslMatchCount = [int]$wslResult.match_count
+                $hostMdnsProbeWslExit = [int]$wslResult.exit_code
+                $probeResults += $wslResult
+            }
+            if ($runWindowsProbe) {
+                $winResult = Invoke-HostMdnsProbeWindows -ProbeScriptWin $probeScriptWin -DiscriminatorValue $discriminator -TimeoutSeconds $HostMdnsProbeTimeoutSeconds -LogPath $hostMdnsProbeWindowsLogPath -ResultJsonPath $hostMdnsProbeWindowsJsonPath
+                $hostMdnsProbeWindowsStatus = [string]$winResult.status
+                $hostMdnsProbeWindowsStatusReason = [string]$winResult.status_reason
+                $hostMdnsProbeWindowsFound = [bool]$winResult.found
+                $hostMdnsProbeWindowsServiceCount = [int]$winResult.service_count
+                $hostMdnsProbeWindowsMatchCount = [int]$winResult.match_count
+                $hostMdnsProbeWindowsExit = [int]$winResult.exit_code
+                $probeResults += $winResult
+            }
+
+            $hostMdnsProbeMode = if ($runWslProbe -and $runWindowsProbe) { "wsl+windows" } elseif ($runWslProbe) { "wsl" } elseif ($runWindowsProbe) { "windows" } else { "none" }
+            $foundResults = @($probeResults | Where-Object { $_.found })
+            $notFoundResults = @($probeResults | Where-Object { $_.status -eq "not_found" })
+            $unavailableResults = @($probeResults | Where-Object { $_.status -like "unavailable_*" })
+
+            if ($foundResults.Count -gt 0) {
+                $firstFound = $foundResults[0]
+                $hostMdnsProbeStatus = "found"
+                $hostMdnsProbeStatusReason = "host probe found commissionable entry (mode=$($firstFound.mode))"
+                $hostMdnsProbeFound = $true
+            } elseif ($notFoundResults.Count -gt 0) {
+                if ($unavailableResults.Count -gt 0) {
+                    $hostMdnsProbeStatus = "not_found_partial"
+                    $hostMdnsProbeStatusReason = "no matching entry found in available probe mode(s); another mode unavailable"
                 } else {
-                    $probeCommand = "'$wslPython' '$probeScriptWsl' --service-type '_matterc._udp.local.' --discriminator $discriminator --timeout-seconds $HostMdnsProbeTimeoutSeconds"
-                    $probeOutput = ""
-                    $prevErr = $ErrorActionPreference
-                    $ErrorActionPreference = "Continue"
-                    try {
-                        $probeOutput = (& wsl.exe -d Ubuntu bash -lc $probeCommand 2>&1 | Out-String)
-                        $hostMdnsProbeExit = $LASTEXITCODE
-                    } finally {
-                        $ErrorActionPreference = $prevErr
-                    }
-                    Set-Content -Path $hostMdnsProbeLogPath -Value $probeOutput -Encoding UTF8
-
-                    $probeData = $null
-                    try {
-                        $probeData = $probeOutput | ConvertFrom-Json
-                    } catch {
-                    }
-
-                    if ($null -eq $probeData) {
-                        $hostMdnsProbeStatus = "invalid_output"
-                        $hostMdnsProbeStatusReason = "probe output is not valid JSON"
-                    } else {
-                        $hostMdnsProbeStatus = [string]$probeData.status
-                        $hostMdnsProbeStatusReason = [string]$probeData.status_reason
-                        $hostMdnsProbeFound = [bool]$probeData.found
-                        $hostMdnsProbeServiceCount = [int]$probeData.service_count
-                        $hostMdnsProbeMatchCount = [int]$probeData.match_count
-                        if ([string]::IsNullOrWhiteSpace($hostMdnsProbeStatus)) {
-                            $hostMdnsProbeStatus = if ($hostMdnsProbeFound) { "found" } else { "not_found" }
-                        }
-                        if ([string]::IsNullOrWhiteSpace($hostMdnsProbeStatusReason)) {
-                            $hostMdnsProbeStatusReason = "probe completed"
-                        }
-                        $probeData | ConvertTo-Json -Depth 8 | Set-Content -Path $hostMdnsProbeJsonPath -Encoding UTF8
-
-                        if (-not $networkAdvertisingKnown) {
-                            $networkAdvertisingKnown = $true
-                            $networkAdvertising = $hostMdnsProbeFound
-                            $networkAdvertisingReason = if ($hostMdnsProbeFound) { "host_mdns_probe" } else { "host_mdns_probe_no_match" }
-                        }
-                    }
+                    $hostMdnsProbeStatus = "not_found"
+                    $hostMdnsProbeStatusReason = "no commissionable entries discovered on host probe"
                 }
+                $hostMdnsProbeFound = $false
+            } elseif ($probeResults.Count -gt 0) {
+                $primary = $probeResults[0]
+                $hostMdnsProbeStatus = [string]$primary.status
+                $hostMdnsProbeStatusReason = [string]$primary.status_reason
+                $hostMdnsProbeFound = [bool]$primary.found
+            }
+
+            if ($probeResults.Count -gt 0) {
+                $hostMdnsProbeServiceCount = [int](($probeResults | Measure-Object -Property service_count -Maximum).Maximum)
+                $hostMdnsProbeMatchCount = [int](($probeResults | Measure-Object -Property match_count -Maximum).Maximum)
+                $hostMdnsProbeExit = [int]$probeResults[0].exit_code
+            }
+
+            $hostSummary = [ordered]@{
+                mode_requested = $HostMdnsProbeModeNormalized
+                mode_effective = $hostMdnsProbeMode
+                status = $hostMdnsProbeStatus
+                status_reason = $hostMdnsProbeStatusReason
+                found = $hostMdnsProbeFound
+                service_count = $hostMdnsProbeServiceCount
+                match_count = $hostMdnsProbeMatchCount
+                wsl = [ordered]@{
+                    status = $hostMdnsProbeWslStatus
+                    status_reason = $hostMdnsProbeWslStatusReason
+                    found = $hostMdnsProbeWslFound
+                    service_count = $hostMdnsProbeWslServiceCount
+                    match_count = $hostMdnsProbeWslMatchCount
+                    exit_code = $hostMdnsProbeWslExit
+                    log = $hostMdnsProbeWslLogPath
+                    result_json = $hostMdnsProbeWslJsonPath
+                }
+                windows = [ordered]@{
+                    status = $hostMdnsProbeWindowsStatus
+                    status_reason = $hostMdnsProbeWindowsStatusReason
+                    found = $hostMdnsProbeWindowsFound
+                    service_count = $hostMdnsProbeWindowsServiceCount
+                    match_count = $hostMdnsProbeWindowsMatchCount
+                    exit_code = $hostMdnsProbeWindowsExit
+                    log = $hostMdnsProbeWindowsLogPath
+                    result_json = $hostMdnsProbeWindowsJsonPath
+                }
+            }
+            $hostSummary | ConvertTo-Json -Depth 8 | Set-Content -Path $hostMdnsProbeJsonPath -Encoding UTF8
+            $hostSummaryLines = @(
+                "mode_requested=$HostMdnsProbeModeNormalized"
+                "mode_effective=$hostMdnsProbeMode"
+                "status=$hostMdnsProbeStatus"
+                "status_reason=$hostMdnsProbeStatusReason"
+                "wsl_status=$hostMdnsProbeWslStatus"
+                "windows_status=$hostMdnsProbeWindowsStatus"
+            )
+            Set-Content -Path $hostMdnsProbeLogPath -Value ($hostSummaryLines -join [Environment]::NewLine) -Encoding UTF8
+
+            if (-not $networkAdvertisingKnown) {
+                $networkAdvertisingKnown = $true
+                $networkAdvertising = $hostMdnsProbeFound
+                $networkAdvertisingReason = if ($hostMdnsProbeFound) { "host_mdns_probe" } else { "host_mdns_probe_no_match" }
             }
         }
     }
@@ -714,6 +986,7 @@ if ($discoveryPrecheckEnabled) {
 }
 if ($hostMdnsProbeEnabled) {
     $detailsParts += "host_mdns=$hostMdnsProbeStatus"
+    $detailsParts += "host_mdns_mode=$hostMdnsProbeMode"
     $detailsParts += "host_mdns_match=$hostMdnsProbeMatchCount"
     $detailsParts += "host_mdns_total=$hostMdnsProbeServiceCount"
 }
@@ -781,6 +1054,7 @@ $result = [ordered]@{
     discovery_precheck_log = $discoveryLogPath
     discovery_precheck_discriminator = $discriminator
     run_host_mdns_probe = $RunHostMdnsProbeBool
+    host_mdns_probe_mode_requested = $HostMdnsProbeModeNormalized
     host_mdns_probe_timeout_seconds = $HostMdnsProbeTimeoutSeconds
     host_mdns_probe_enabled = $hostMdnsProbeEnabled
     host_mdns_probe_status = $hostMdnsProbeStatus
@@ -792,6 +1066,22 @@ $result = [ordered]@{
     host_mdns_probe_match_count = $hostMdnsProbeMatchCount
     host_mdns_probe_log = $hostMdnsProbeLogPath
     host_mdns_probe_result_json = $hostMdnsProbeJsonPath
+    host_mdns_probe_wsl_status = $hostMdnsProbeWslStatus
+    host_mdns_probe_wsl_status_reason = $hostMdnsProbeWslStatusReason
+    host_mdns_probe_wsl_found = $hostMdnsProbeWslFound
+    host_mdns_probe_wsl_service_count = $hostMdnsProbeWslServiceCount
+    host_mdns_probe_wsl_match_count = $hostMdnsProbeWslMatchCount
+    host_mdns_probe_wsl_exit = $hostMdnsProbeWslExit
+    host_mdns_probe_wsl_log = $hostMdnsProbeWslLogPath
+    host_mdns_probe_wsl_result_json = $hostMdnsProbeWslJsonPath
+    host_mdns_probe_windows_status = $hostMdnsProbeWindowsStatus
+    host_mdns_probe_windows_status_reason = $hostMdnsProbeWindowsStatusReason
+    host_mdns_probe_windows_found = $hostMdnsProbeWindowsFound
+    host_mdns_probe_windows_service_count = $hostMdnsProbeWindowsServiceCount
+    host_mdns_probe_windows_match_count = $hostMdnsProbeWindowsMatchCount
+    host_mdns_probe_windows_exit = $hostMdnsProbeWindowsExit
+    host_mdns_probe_windows_log = $hostMdnsProbeWindowsLogPath
+    host_mdns_probe_windows_result_json = $hostMdnsProbeWindowsJsonPath
     runtime_gate_blocked = $runtimeGateBlocked
     network_advertising_known = $networkAdvertisingKnown
     network_advertising = $networkAdvertising

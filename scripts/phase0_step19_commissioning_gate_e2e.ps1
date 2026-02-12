@@ -19,6 +19,7 @@ param(
     [string]$RunDiscoveryPrecheck = "true",
     [int]$DiscoveryTimeoutSeconds = 8,
     [string]$RunHostMdnsProbe = "true",
+    [string]$HostMdnsProbeMode = "wsl",
     [int]$HostMdnsProbeTimeoutSeconds = 6,
     [switch]$SimulateNetworkAdvertising,
     [switch]$SkipRuntimeDiag,
@@ -50,12 +51,16 @@ $RequireNetworkAdvertisingForPairingBool = Convert-ToBool -Value $RequireNetwork
 $RequireDiscoveryFoundForPairingBool = Convert-ToBool -Value $RequireDiscoveryFoundForPairing -ParamName "RequireDiscoveryFoundForPairing"
 $RunDiscoveryPrecheckBool = Convert-ToBool -Value $RunDiscoveryPrecheck -ParamName "RunDiscoveryPrecheck"
 $RunHostMdnsProbeBool = Convert-ToBool -Value $RunHostMdnsProbe -ParamName "RunHostMdnsProbe"
+$HostMdnsProbeModeNormalized = $HostMdnsProbeMode.Trim().ToLowerInvariant()
 
 if ($DiscoveryTimeoutSeconds -lt 1 -or $DiscoveryTimeoutSeconds -gt 120) {
     throw "DiscoveryTimeoutSeconds must be in range 1..120"
 }
 if ($HostMdnsProbeTimeoutSeconds -lt 1 -or $HostMdnsProbeTimeoutSeconds -gt 120) {
     throw "HostMdnsProbeTimeoutSeconds must be in range 1..120"
+}
+if (@("auto", "wsl", "windows", "both") -notcontains $HostMdnsProbeModeNormalized) {
+    throw "HostMdnsProbeMode must be one of: auto, wsl, windows, both"
 }
 if ($RequireDiscoveryFoundForPairingBool -and -not $RunDiscoveryPrecheckBool) {
     throw "RequireDiscoveryFoundForPairing=true requires RunDiscoveryPrecheck=true"
@@ -129,6 +134,7 @@ $gateParams = @{
     RunDiscoveryPrecheck = $RunDiscoveryPrecheckBool
     DiscoveryTimeoutSeconds = $DiscoveryTimeoutSeconds
     RunHostMdnsProbe = $RunHostMdnsProbeBool
+    HostMdnsProbeMode = $HostMdnsProbeModeNormalized
     HostMdnsProbeTimeoutSeconds = $HostMdnsProbeTimeoutSeconds
 }
 if (-not [string]::IsNullOrWhiteSpace($CommissioningDataPath)) {
@@ -195,6 +201,7 @@ $result = [ordered]@{
     gate_discovery_precheck_fallback_used = $gateResult.discovery_precheck_fallback_used
     gate_discovery_precheck_log = $gateResult.discovery_precheck_log
     gate_host_mdns_probe_enabled = $gateResult.host_mdns_probe_enabled
+    gate_host_mdns_probe_mode_requested = $gateResult.host_mdns_probe_mode_requested
     gate_host_mdns_probe_status = $gateResult.host_mdns_probe_status
     gate_host_mdns_probe_status_reason = $gateResult.host_mdns_probe_status_reason
     gate_host_mdns_probe_found = $gateResult.host_mdns_probe_found
@@ -203,6 +210,20 @@ $result = [ordered]@{
     gate_host_mdns_probe_match_count = $gateResult.host_mdns_probe_match_count
     gate_host_mdns_probe_log = $gateResult.host_mdns_probe_log
     gate_host_mdns_probe_result_json = $gateResult.host_mdns_probe_result_json
+    gate_host_mdns_probe_wsl_status = $gateResult.host_mdns_probe_wsl_status
+    gate_host_mdns_probe_wsl_status_reason = $gateResult.host_mdns_probe_wsl_status_reason
+    gate_host_mdns_probe_wsl_found = $gateResult.host_mdns_probe_wsl_found
+    gate_host_mdns_probe_wsl_service_count = $gateResult.host_mdns_probe_wsl_service_count
+    gate_host_mdns_probe_wsl_match_count = $gateResult.host_mdns_probe_wsl_match_count
+    gate_host_mdns_probe_wsl_log = $gateResult.host_mdns_probe_wsl_log
+    gate_host_mdns_probe_wsl_result_json = $gateResult.host_mdns_probe_wsl_result_json
+    gate_host_mdns_probe_windows_status = $gateResult.host_mdns_probe_windows_status
+    gate_host_mdns_probe_windows_status_reason = $gateResult.host_mdns_probe_windows_status_reason
+    gate_host_mdns_probe_windows_found = $gateResult.host_mdns_probe_windows_found
+    gate_host_mdns_probe_windows_service_count = $gateResult.host_mdns_probe_windows_service_count
+    gate_host_mdns_probe_windows_match_count = $gateResult.host_mdns_probe_windows_match_count
+    gate_host_mdns_probe_windows_log = $gateResult.host_mdns_probe_windows_log
+    gate_host_mdns_probe_windows_result_json = $gateResult.host_mdns_probe_windows_result_json
     run_pairing = [bool]$RunPairing
     simulate_network_advertising = [bool]$SimulateNetworkAdvertising
     node_id = $NodeId

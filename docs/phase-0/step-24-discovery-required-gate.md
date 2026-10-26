@@ -41,7 +41,7 @@ Dolozyc osobny, opcjonalny warunek gate: `RequireDiscoveryFoundForPairing`, ktor
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step23-sim-netadv/serial_commissioning_runtime_diag.log `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -RequireDiscoveryFoundForPairing true `
@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step23-sim-netadv/serial_commissioning_runtime_diag.log `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -RequireDiscoveryFoundForPairing false `
@@ -72,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -SkipRuntimeDiag `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step23-sim-netadv/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -RequireDiscoveryFoundForPairing true `
@@ -93,7 +93,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -DiscoveryTimeoutSeconds 8 `
   -SimulateNetworkAdvertising `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -Instance c19-com11-step24-discovery-required-live
 ```
 

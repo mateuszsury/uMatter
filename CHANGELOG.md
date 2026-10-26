@@ -8,6 +8,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Public roadmap with explicit Phase 0 status and separate acceptance evidence for real firmware and reference virtual devices.
+- Board-independent repository check for required documents, local Markdown links and Python syntax, used by CI.
 - Project-level repository governance files (`README`, `LICENSE`, `CONTRIBUTING`, `SECURITY`, CI templates).
 - Phase 0 documentation and report index.
 - Commissioning diagnostics step-17: ready-reason state model in core and Python API (`ready_reason`, `ready_reason_code`, runtime state mapping).
@@ -30,6 +32,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Replaced private-plan and personal skill-directory references with public, repository-relative guidance.
+- PowerShell wrappers use configurable WSL tool paths instead of a developer-specific home directory; build-only runs do not require a serial device.
+- CI names and documentation state the scope of repository and syntax validation explicitly.
 - `scripts/phase0_step02_c5_e2e.ps1` now resolves `esptool --chip` from board type (C5/C6/etc).
 - `scripts/phase0_step12_chiptool_gate.ps1` now parses runtime diagnostics logs and blocks `-RunPairing` when runtime is not ready.
 - `scripts/phase0_step12_chiptool_gate.ps1` now supports optional `RequireNetworkAdvertisingForPairing` and `blocked_network_not_advertising`.

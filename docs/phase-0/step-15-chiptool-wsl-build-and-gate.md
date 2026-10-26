@@ -44,7 +44,7 @@ Preflight:
 ```powershell
 & scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -Instance c12-com11-step14-preflight2
 ```
 
@@ -53,7 +53,7 @@ Pairing:
 ```powershell
 & scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -Instance c12-com11-step14-runpair
 ```

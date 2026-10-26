@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -SkipRuntimeDiag `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step17/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -Instance c19-com11-step19-preflight-ready
 ```
 
@@ -53,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -SkipRuntimeDiag `
   -RuntimeDiagLogPath artifacts/commissioning/c12-com11-step18-runtime-not-ready.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -Instance c19-com11-step19-runpair-blocked
 ```
@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -SkipRuntimeDiag `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step17/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -Instance c19-com11-step19-runpair-ready
 ```

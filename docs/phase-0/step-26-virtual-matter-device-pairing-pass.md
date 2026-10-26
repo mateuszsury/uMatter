@@ -44,8 +44,8 @@ Set-StrictMode -Version Latest
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step26_virtual_device_pairing.ps1 `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step23-sim-netadv/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
-  -VirtualDeviceAppWslPath /home/thete/umatter-work/connectedhomeip/out/all-clusters/chip-all-clusters-app `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
+  -VirtualDeviceAppWslPath $env:UMATTER_VIRTUAL_DEVICE_WSL `
   -NodeId 778899 `
   -Instance c26-com11-step26-virtual-pairing
 ```

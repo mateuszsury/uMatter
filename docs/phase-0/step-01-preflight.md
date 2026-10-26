@@ -2,7 +2,7 @@
 
 ## Cel
 
-Pierwszy maly krok wdrozenia z `plan.md` (Faza 0) to zamkniecie punktu:
+Pierwszy maly krok wdrozenia Fazy 0 (obecnie opisanej w [publicznej roadmapie](../ROADMAP.md)) to zamkniecie punktu:
 - "Konfiguracja srodowiska budowania (MicroPython + ESP-IDF + esp-matter)".
 
 Ten krok daje szybki sygnal pass/fail, zanim zaczniemy integracje CMake.

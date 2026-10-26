@@ -1,7 +1,7 @@
 param(
     [string]$RuntimeDiagLogPath = "",
     [string]$CommissioningDataPath = "",
-    [string]$ChipToolWslPath = "/home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool",
+    [string]$ChipToolWslPath = $env:UMATTER_CHIP_TOOL_WSL,
     [UInt64]$NodeId = 112233,
     [int]$Discriminator = 1234,
     [string]$MockInstance = "uMatter-Mock-Gateway",

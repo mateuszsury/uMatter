@@ -1,6 +1,6 @@
 param(
     [string]$ComPort = "COM14",
-    [string]$IdfRootWsl = "/home/thete/esp-idf-5.5.1",
+    [string]$IdfRootWsl = $env:UMATTER_IDF_ROOT_WSL,
     [string]$Board = "ESP32_GENERIC_C5",
     [string]$Chip = "",
     [string]$MicropythonTag = "v1.27.0",
@@ -64,9 +64,11 @@ New-Item -ItemType Directory -Path $artifactsRootAbs -Force | Out-Null
 $artifactDirAbs = Join-Path $artifactsRootAbs $BuildInstance
 New-Item -ItemType Directory -Path $artifactDirAbs -Force | Out-Null
 
-$allPorts = [System.IO.Ports.SerialPort]::GetPortNames()
-if ($allPorts -notcontains $ComPort) {
-    throw "COM port not found: $ComPort"
+if (-not $SkipFlash -or -not $SkipSmoke) {
+    $allPorts = [System.IO.Ports.SerialPort]::GetPortNames()
+    if ($allPorts -notcontains $ComPort) {
+        throw "COM port not found: $ComPort"
+    }
 }
 if ($SmokeRetries -lt 1 -or $SmokeRetries -gt 20) {
     throw "SmokeRetries must be in range 1..20"
@@ -89,7 +91,10 @@ if (-not $SkipBuild) {
         throw "Could not translate Windows paths to WSL paths."
     }
 
-    $buildCmd = "'$scriptWsl' --idf-root '$IdfRootWsl' --board '$Board' --tag '$MicropythonTag' --instance '$BuildInstance' --artifact-dir '$artifactDirWsl'"
+    $buildCmd = "'$scriptWsl' --board '$Board' --tag '$MicropythonTag' --instance '$BuildInstance' --artifact-dir '$artifactDirWsl'"
+    if (-not [string]::IsNullOrWhiteSpace($IdfRootWsl)) {
+        $buildCmd += " --idf-root '$IdfRootWsl'"
+    }
     if (-not [string]::IsNullOrWhiteSpace($UserCModulesPath)) {
         $userCModulesAbs = (Resolve-Path -Path $UserCModulesPath).Path
         $userCModulesAbsForWsl = $userCModulesAbs -replace "\\", "/"

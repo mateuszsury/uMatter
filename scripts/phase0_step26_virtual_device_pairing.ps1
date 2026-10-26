@@ -1,8 +1,8 @@
 param(
     [string]$RuntimeDiagLogPath = "",
     [string]$CommissioningDataPath = "",
-    [string]$ChipToolWslPath = "/home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool",
-    [string]$VirtualDeviceAppWslPath = "/home/thete/umatter-work/connectedhomeip/out/all-clusters/chip-all-clusters-app",
+    [string]$ChipToolWslPath = $env:UMATTER_CHIP_TOOL_WSL,
+    [string]$VirtualDeviceAppWslPath = $env:UMATTER_VIRTUAL_DEVICE_WSL,
     [UInt64]$NodeId = 556677,
     [int]$Discriminator = -1,
     [int]$Passcode = -1,
@@ -12,6 +12,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($ChipToolWslPath)) {
+    throw "Pass -ChipToolWslPath or set UMATTER_CHIP_TOOL_WSL to your WSL chip-tool binary."
+}
+if ([string]::IsNullOrWhiteSpace($VirtualDeviceAppWslPath)) {
+    throw "Pass -VirtualDeviceAppWslPath or set UMATTER_VIRTUAL_DEVICE_WSL to your WSL reference device binary."
+}
 
 if ([string]::IsNullOrWhiteSpace($Instance)) {
     $Instance = "c26-" + (Get-Date -Format "yyyyMMdd-HHmmss")

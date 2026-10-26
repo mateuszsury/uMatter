@@ -20,7 +20,7 @@ Usunac niejednoznacznosc kompilacji `umatter_core_runtime.c`, w ktorej jeden z e
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step02_c5_e2e.ps1 `
   -ComPort COM11 `
-  -IdfRootWsl /home/thete/esp-idf-5.5.1 `
+  -IdfRootWsl $env:UMATTER_IDF_ROOT_WSL `
   -Board ESP32_GENERIC_C6 `
   -BuildInstance c6-com11-step29-espflag `
   -UserCModulesPath modules/umatter `
@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step16_commissioning_run
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step29-default-r2/serial_commissioning_runtime_diag.log `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireRuntimeReadyForPairing true `
   -RequireNetworkAdvertisingForPairing true `

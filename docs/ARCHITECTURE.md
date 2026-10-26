@@ -22,7 +22,7 @@ uMatter uses a layered model:
 - Artifacts are emitted into instance-specific directories under `artifacts/`.
 
 See:
-- `plan.md`
-- `mp_skill.md`
-- `scripts/wsl_build_micropython_c5.sh`
+- [Public roadmap and current acceptance gates](ROADMAP.md)
+- [Build/flash/test workflow](../mp_skill.md)
+- [MicroPython build script](../scripts/wsl_build_micropython_c5.sh)
 

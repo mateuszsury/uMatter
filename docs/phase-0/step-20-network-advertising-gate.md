@@ -80,7 +80,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step16_commissioning_run
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step20/serial_commissioning_runtime_diag.log `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -Instance c12-com11-step20-runpair-netgate-known
@@ -94,7 +94,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -Instance c19-com11-step20-live-netgate
 ```
 

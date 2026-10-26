@@ -5,7 +5,7 @@
 
 uMatter is a MicroPython + Matter integration project for ESP32-class boards, focused on practical embedded delivery from PoC to release.
 
-Current repository status: active Phase 0 implementation with hardware-validated build/flash/test flow on ESP32-C5/C6.
+Current repository status: **experimental Phase 0 proof of concept**. Recorded ESP32-C5/C6 build, flash and smoke runs are available, but discovery and commissioning of the real uMatter firmware remain open. See the [public roadmap](docs/ROADMAP.md) and [hardware matrix](docs/HARDWARE_MATRIX.md).
 
 ## Key Goals
 
@@ -35,7 +35,7 @@ scripts/               Build/flash/smoke and commissioning utilities
 docs/                  Technical documentation and phase implementation notes
 reports/               Validation reports and risks per step
 artifacts/             Local output artifacts (ignored by git except metadata)
-plan.md                Main product and architecture plan
+docs/ROADMAP.md        Public scope, milestone status and acceptance gates
 mp_skill.md            Build/flash/test workflow (WSL + PowerShell)
 AGENTS.md              Orchestration and agent usage policy
 ```
@@ -74,7 +74,8 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step16_commissioning_run
 
 ## Documentation Map
 
-- Product scope and architecture: `plan.md`
+- Product scope and milestone status: [Public roadmap](docs/ROADMAP.md)
+- Architecture: [Architecture overview](docs/ARCHITECTURE.md)
 - Build workflow: `mp_skill.md`
 - Agent execution model: `AGENTS.md`, `agents/`
 - Implementation notes by phase: `docs/phase-0/`
@@ -84,13 +85,28 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step16_commissioning_run
 
 ## Roadmap
 
-Roadmap phases are tracked in `plan.md`:
+Milestone status and acceptance gates are tracked in the [public roadmap](docs/ROADMAP.md):
 
 1. Phase 0: PoC
 2. Phase 1: MVP
 3. Phase 2: Completeness
 4. Phase 3: Appliances and Energy
 5. Phase 4: Advanced + 2.x release
+
+## Repository Checks
+
+From the repository root, run the checks that do not require a board:
+
+```bash
+python scripts/check_repository.py
+bash -n scripts/wsl_idf_build.sh
+bash -n scripts/wsl_build_micropython_c5.sh
+```
+
+GitHub Actions also parses PowerShell scripts on Windows. These checks validate
+repository files, documentation links and script syntax; they do not establish
+a successful firmware build or Matter commissioning. Device and controller
+validation remains documented in [Phase 0 reports](reports/phase-0/).
 
 ## License
 

@@ -7,31 +7,31 @@ on:
     branches: ["main", "develop"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-repo:
+    name: Repository and script syntax checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Validate mandatory files
-        shell: bash
-        run: |
-          set -euo pipefail
-          required=(
-            README.md
-            LICENSE
-            CHANGELOG.md
-            CONTRIBUTING.md
-            SECURITY.md
-            CODE_OF_CONDUCT.md
-            AGENTS.md
-            mp_skill.md
-            docs/ARCHITECTURE.md
-          )
-          for f in "${required[@]}"; do
-            [[ -f "$f" ]] || { echo "Missing required file: $f"; exit 1; }
-          done
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate repository, local documentation links and Python syntax
+        run: python scripts/check_repository.py
 
       - name: Shell syntax check
         shell: bash
@@ -42,18 +42,15 @@ jobs:
             bash -n "$f"
           done
 
-      - name: Markdown basic lint
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Basic guardrails without external dependencies
-          grep -RIn --include='*.md' -E $'\t' . && { echo "Tab characters found in markdown"; exit 1; } || true
-
   validate-powershell:
+    name: PowerShell syntax checks
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Parse PowerShell scripts (syntax)
         shell: pwsh

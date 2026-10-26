@@ -55,7 +55,7 @@ Set-StrictMode -Version Latest
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step20/serial_commissioning_runtime_diag.log `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -RunDiscoveryPrecheck true `
@@ -70,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -SkipRuntimeDiag `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step20/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -RunDiscoveryPrecheck true `

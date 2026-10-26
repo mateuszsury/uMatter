@@ -6,6 +6,25 @@
 - Build: WSL (Ubuntu + ESP-IDF)
 - Device operations: `python -m esptool`, `python -m mpremote`
 
+## Local Tool Paths
+
+The scripts do not require a particular Windows or WSL user name. Configure the
+paths to tools you have built in your WSL installation, for example:
+
+```powershell
+$wslHome = (& wsl.exe bash -lc 'printf "%s" "$HOME"').Trim()
+$env:UMATTER_IDF_ROOT_WSL = "$wslHome/esp-idf-5.5.1"
+$env:UMATTER_CHIP_TOOL_WSL = "$wslHome/umatter-work/connectedhomeip/out/chip-tool/chip-tool"
+$env:UMATTER_VIRTUAL_DEVICE_WSL = "$wslHome/umatter-work/connectedhomeip/out/all-clusters/chip-all-clusters-app"
+```
+
+These are example layouts, not downloads performed by the PowerShell wrappers.
+Pass `-IdfRootWsl`, `-ChipToolWslPath` or `-VirtualDeviceAppWslPath` to override
+them. The MicroPython build helper uses its WSL-home default when the IDF root
+is omitted. The commissioning gate can auto-detect `chip-tool` for normal gate
+and mock-gateway runs; the virtual-device runner requires explicit paths or
+the environment variables above. Substitute the actual serial port for `COM11`.
+
 ## Standard Loop
 
 1. Preflight:
@@ -42,7 +61,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -SkipRuntimeDiag `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step20/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL
 ```
 
 6. Commissioning gate z network advertising gate:
@@ -53,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL
 ```
 
 7. Commissioning gate z discovery precheck:
@@ -67,7 +86,7 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step19_commissioning_gat
   -RunDiscoveryPrecheck true `
   -DiscoveryTimeoutSeconds 8 `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL
 ```
 
 ## Concurrent Build Safety

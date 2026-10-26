@@ -25,7 +25,7 @@ Prowadzic projekt przez fazy roadmapy i egzekwowac gate quality.
 
 ## Workflow
 
-1. Przeczytaj scope fazy z `plan.md`.
+1. Przeczytaj scope i aktualny status fazy z `docs/ROADMAP.md`.
 2. Rozbij scope na zadania techniczne i testowe.
 3. Przypisz zadania do agentow domenowych.
 4. Odbierz wyniki, sprawdz artefakty i ryzyka.

@@ -34,3 +34,9 @@ local-codex-skills/
 
 # Local planning notes
 plan.md
+
+# Generated development files
+.ruff_cache/
+*.egg-info/
+build/
+dist/

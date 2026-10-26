@@ -21,7 +21,7 @@ Dodac do runtime publikacje subtypes dla commissionable mDNS (`_L...`, `_S...`),
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step02_c5_e2e.ps1 `
   -ComPort COM11 `
-  -IdfRootWsl /home/thete/esp-idf-5.5.1 `
+  -IdfRootWsl $env:UMATTER_IDF_ROOT_WSL `
   -Board ESP32_GENERIC_C6 `
   -BuildInstance c6-com11-step30c-buildonly `
   -UserCModulesPath modules/umatter `
@@ -55,7 +55,7 @@ Wynik:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step12_chiptool_gate.ps1 `
   -Instance c12-20260212-step30chiptool `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -RunPairing `
   -RequireNetworkAdvertisingForPairing true `
   -RequireDiscoveryFoundForPairing true `

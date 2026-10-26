@@ -5,15 +5,21 @@ Uzywaj tych agentow jako stalych rol wykonawczych podczas budowy projektu od PoC
 
 ## Dokumenty zrodlowe
 
-1. `plan.md` - glowny plan produktu i architektury.
+1. `docs/ROADMAP.md` - publiczny zakres, status faz i kryteria akceptacji.
 2. `mp_skill.md` - workflow build/flash/test (WSL + PowerShell).
 3. `agents/*.md` - kontrakty wykonawcze agentow.
-4. `C:\Users\thete\.codex\skills\umatter-*` - skille operacyjne.
+4. `docs/ARCHITECTURE.md` - aktualny model architektury.
+
+Kontrakty rol sa dostepne w `agents/`; nie wymagaja katalogu konkretnego
+uzytkownika. Nazwy skilli wymienione w kontraktach oznaczaja opcjonalne narzedzia
+lokalne, a nie pliki dostarczone z repozytorium. Korzystaj z nich tylko wtedy,
+gdy sa faktycznie zainstalowane. W przeciwnym razie stosuj `mp_skill.md` oraz
+dokumentacje projektu i jawnie raportuj ograniczenia walidacji.
 
 ## Szybki Start
 
 1. Zacznij od `agents/00-orchestrator.md`.
-2. Wybierz faze roadmapy z `plan.md`.
+2. Wybierz faze i gate z `docs/ROADMAP.md`.
 3. Deleguj zadania do agentow domenowych.
 4. Zbieraj artefakty i status do jednego raportu fazy.
 
@@ -44,9 +50,13 @@ Uzywaj tych agentow jako stalych rol wykonawczych podczas budowy projektu od PoC
 1. Build i flash dzialaja dla docelowych boardow i profili.
 2. API proste i zaawansowane ma stabilne kontrakty.
 3. Pamiec miesci sie w limitach PSRAM i no-PSRAM.
-4. Commissioning przechodzi end-to-end.
+4. Commissioning przechodzi end-to-end na realnym firmware; wynik mocka lub
+   referencyjnego virtual device nie zamyka tego gate.
 5. Test matrix ma udokumentowane wyniki i ryzyka.
-6. Artefakty release sa reprodukowalne i podpisane checksumami.
+6. Artefakty release sa reprodukowalne i maja zweryfikowane sumy kontrolne.
+
+To sa kryteria zakonczenia projektu, nie deklaracja obecnej gotowosci. Aktualna
+Faza 0 i otwarty gate discovery/commissioning sa opisane w `docs/ROADMAP.md`.
 
 ## Standard raportowania
 

@@ -47,7 +47,7 @@ Umowic testowanie discovery i gate commissioning bez fizycznej bramki Matter, pr
 powershell -ExecutionPolicy Bypass -File scripts/phase0_step25_mock_gateway_discovery.ps1 `
   -RuntimeDiagLogPath artifacts/commissioning/c16-com11-step23-sim-netadv/serial_commissioning_runtime_diag.log `
   -CommissioningDataPath artifacts/commissioning/c11-com11-step14/commissioning_data.json `
-  -ChipToolWslPath /home/thete/umatter-work/connectedhomeip/out/chip-tool/chip-tool `
+  -ChipToolWslPath $env:UMATTER_CHIP_TOOL_WSL `
   -Discriminator 1234 `
   -Instance c25-com11-step25-mock-gateway-found
 ```

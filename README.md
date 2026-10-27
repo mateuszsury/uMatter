@@ -1,11 +1,25 @@
-# uMatter
+# uMatter — MicroPython and Matter PoC for ESP32-C5/C6
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/mateuszsury/uMatter/actions/workflows/ci.yml/badge.svg)](https://github.com/mateuszsury/uMatter/actions/workflows/ci.yml)
 
-uMatter is a MicroPython + Matter integration project for ESP32-class boards, focused on practical embedded delivery from PoC to release.
+uMatter explores **Matter device integration in MicroPython on ESP32-C5 and ESP32-C6**. It combines a native C module, a node/endpoint/cluster runtime model, commissioning diagnostics, and Windows/WSL scripts for building, flashing and smoke testing firmware.
 
-Current repository status: **experimental Phase 0 proof of concept**. Recorded ESP32-C5/C6 build, flash and smoke runs are available, but discovery and commissioning of the real uMatter firmware remain open. See the [public roadmap](docs/ROADMAP.md) and [hardware matrix](docs/HARDWARE_MATRIX.md).
+**Status: experimental Phase 0 proof of concept.** Recorded build, flash and smoke runs are available, but the gate for **real-device discovery and Matter commissioning remains OPEN**. The reference virtual-device pairing experiment is separate evidence. See the [public roadmap](docs/ROADMAP.md) and [hardware matrix](docs/HARDWARE_MATRIX.md) for the current limits.
+
+[Development setup](docs/DEVELOPMENT.md) · [Technical documentation](docs/README.md) · [Phase 0 validation reports](reports/phase-0/)
+
+## Architecture Overview
+
+![uMatter Phase 0 architecture: Windows and WSL build/flash tools, MicroPython API, native C bindings, core runtime and mDNS diagnostics, with an open gate for real-device discovery and commissioning](docs/assets/presentation/overview.svg)
+
+The native module exposes runtime state and diagnostics to MicroPython. Host tools
+build and flash the firmware, collect serial evidence, and probe controller-side
+discovery. The dashed path marks the open real-device gate. Full Matter stack
+integration remains planned work, as described in the architecture notes.
+
+See the [architecture notes](docs/ARCHITECTURE.md) and the editable
+[Graphviz diagram source](docs/assets/presentation/overview.dot).
 
 ## Key Goals
 
@@ -16,15 +30,15 @@ Current repository status: **experimental Phase 0 proof of concept**. Recorded E
 
 ## What Is Implemented Today
 
-- Native user C module scaffold (`modules/umatter`).
+- Native user C module scaffold ([modules/umatter](modules/umatter/)).
 - Core runtime model with nodes, endpoints, clusters, commissioning data, and transport state.
 - Host-driven build and flash automation scripts.
 - Phase-by-phase technical docs and reports with real artifacts.
 
 See:
-- `docs/README.md`
-- `docs/phase-0/`
-- `reports/phase-0/`
+- [Documentation index](docs/README.md)
+- [Phase 0 implementation notes](docs/phase-0/)
+- [Phase 0 validation reports](reports/phase-0/)
 
 ## Repository Layout
 
@@ -41,6 +55,11 @@ AGENTS.md              Orchestration and agent usage policy
 ```
 
 ## Quick Start (Windows + WSL)
+
+Use a supported ESP32 board and configure your local WSL tool paths with the
+[development guide](docs/DEVELOPMENT.md). `COM11` below is an example: replace it
+with your board's actual serial port. For checks without a board, use
+[Repository Checks](#repository-checks).
 
 1. Run environment preflight:
 
@@ -76,12 +95,12 @@ powershell -ExecutionPolicy Bypass -File scripts/phase0_step16_commissioning_run
 
 - Product scope and milestone status: [Public roadmap](docs/ROADMAP.md)
 - Architecture: [Architecture overview](docs/ARCHITECTURE.md)
-- Build workflow: `mp_skill.md`
-- Agent execution model: `AGENTS.md`, `agents/`
-- Implementation notes by phase: `docs/phase-0/`
-- Validation reports: `reports/phase-0/`
-- Contribution process: `CONTRIBUTING.md`
-- Security policy: `SECURITY.md`
+- Build workflow: [MicroPython firmware workflow](mp_skill.md)
+- Agent execution model: [AGENTS.md](AGENTS.md), [agent contracts](agents/)
+- Implementation notes by phase: [docs/phase-0/](docs/phase-0/)
+- Validation reports: [reports/phase-0/](reports/phase-0/)
+- Contribution process: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security policy: [SECURITY.md](SECURITY.md)
 
 ## Roadmap
 
@@ -111,4 +130,4 @@ validation remains documented in [Phase 0 reports](reports/phase-0/).
 ## License
 
 This project is licensed under the Apache License 2.0.
-See `LICENSE`.
+See [LICENSE](LICENSE).

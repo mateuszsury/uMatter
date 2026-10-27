@@ -1,0 +1,68 @@
+// Render from the repository root:
+// dot -Tsvg docs/assets/presentation/overview.dot -o docs/assets/presentation/overview.svg
+digraph uMatter {
+  graph [
+    bgcolor="#0b1220",
+    fontname="DejaVu Sans",
+    fontcolor="#ffffff",
+    fontsize=16,
+    label="uMatter · MicroPython + Matter proof of concept",
+    labelloc=t,
+    labeljust=l,
+    pad=0.35,
+    nodesep=0.45,
+    ranksep=0.65,
+    splines=polyline,
+    rankdir=TB
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#142235",
+    color="#37506d",
+    fontname="DejaVu Sans",
+    fontcolor="#ffffff",
+    fontsize=12,
+    penwidth=1.4,
+    margin="0.22,0.18"
+  ];
+  edge [
+    color="#38bdf8",
+    fontcolor="#ffffff",
+    fontname="DejaVu Sans",
+    fontsize=10,
+    penwidth=1.5,
+    arrowsize=0.75
+  ];
+
+  host [label="Development host · Windows + WSL\nMicroPython / ESP-IDF build\nPowerShell flash + serial smoke"];
+
+  subgraph cluster_firmware {
+    label="ESP32-C5 / ESP32-C6 · current native module";
+    color="#38bdf8";
+    style=rounded;
+    margin=20;
+    { rank=same;
+      api [label="MicroPython API\nNode · Endpoint · Light"];
+      bindings [label="Native C bindings\nmod_umatter*.c"];
+      core [label="Core runtime model\nLifecycle · endpoints · clusters"];
+    }
+    api -> bindings [label="calls"];
+    bindings -> core [label="state"];
+    telemetry [label="Runtime diagnostics\nReadiness + mDNS publication"];
+    core -> telemetry [label="ESP32 path"];
+  }
+
+  host -> api [label="build artifacts + serial commands"];
+
+  controller [label="Controller-side tools\nchip-tool + host mDNS probes"];
+  gate [
+    label="OPEN GATE\nReal-device discovery + commissioning",
+    color="#38bdf8",
+    penwidth=2,
+    fillcolor="#112c40"
+  ];
+  { rank=same; controller; gate; }
+  controller -> gate [label="discovery result"];
+  telemetry -> gate [style=dashed, label="real-device proof still open"];
+}
